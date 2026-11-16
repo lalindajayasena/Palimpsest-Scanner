@@ -69,11 +69,15 @@ function filt(o,m){
  for(let i=0;i<d.length;i+=4){const y=L[d[i]];d[i]=d[i+1]=d[i+2]=y}
  x.putImageData(im,0,0);
 }
+function loadImg(p){return new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=()=>no(new Error('Photo '+p.f.name+' could not be opened'));i.src=p.url})}
 async function render(p,part,m){
- const b=await createImageBitmap(p.f,{imageOrientation:'from-image'});
- const sw=p.rot==90||p.rot==270,W=sw?b.height:b.width,H=sw?b.width:b.height;
+ const b=await loadImg(p);
+ const iw=b.naturalWidth,ih=b.naturalHeight,sw=p.rot==90||p.rot==270;
+ const W0=sw?ih:iw,H0=sw?iw:ih,k0=Math.min(1,2600/Math.max(W0,H0));
+ const W=Math.round(W0*k0),H=Math.round(H0*k0);
  const c=document.createElement('canvas');c.width=W;c.height=H;
- const x=c.getContext('2d');x.translate(W/2,H/2);x.rotate(p.rot*Math.PI/180);x.drawImage(b,-b.width/2,-b.height/2);b.close();
+ const x=c.getContext('2d');x.translate(W/2,H/2);x.rotate(p.rot*Math.PI/180);
+ const dw=iw*k0,dh=ih*k0;x.drawImage(b,-dw/2,-dh/2,dw,dh);b.src='';
  let sx=0,w=W;if(part==1)w=W/2;if(part==2){sx=W/2;w=W/2}
  const k=Math.min(1,1800/Math.max(w,H)),o=document.createElement('canvas');
  o.width=Math.round(w*k);o.height=Math.round(H*k);
