@@ -29,7 +29,8 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 <p style="margin:0 0 10px"><button class="g" id="hbtn">❓ Help</button><button class="g" id="inst" style="display:none">⬇ Install app</button><a href="reader.html" style="color:var(--ac);font-size:16px">📖 Open the Reader (read or listen to your books)</a></p>
 <input id="add" type="file" accept="image/*" multiple hidden>
 <input id="cam" type="file" accept="image/*" capture="environment" hidden>
-<label class="b" for="add">+ Add photos</label><label class="b" for="cam">📷 Take photo</label>
+<input id="add2" type="file" accept="image/jpeg,image/png,image/webp,application/octet-stream" multiple hidden>
+<label class="b" for="add">+ Add photos</label><label class="b" for="add2">📁 Add from Files</label><label class="b" for="cam">📷 Take photo</label>
 <button class="g" id="spl">Split all (2 pages per photo)</button>
 <button class="g" id="clr">Clear all</button>
 <div id="count" style="margin:6px 0;opacity:.7"></div>
@@ -116,7 +117,8 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 <li>Then it opens from your home screen like a normal app.</li>
 <li>After you have used it once with internet, it can open without internet. OCR language data may need one online use first.</li></ul></details>
 <details><summary>Problems and fixes</summary><ul>
-<li><b>Photo could not be opened</b>: remove that photo and add it again.</li>
+<li><b>Photo could not be read or opened</b>: use <b>📁 Add from Files</b> instead of <b>+ Add photos</b>. If a photo is in Google Photos, open it in the Gallery first so it downloads. Also check Settings, Apps, Chrome, Permissions, Photos and videos.</li>
+<li><b>Photos are saved inside the app</b>, so they are still here next time. Tap <b>Clear all</b> when you are finished, to free space on your phone.</li>
 <li><b>Page stops or restarts</b>: the phone ran out of memory. Use a smaller part size, like 20.</li>
 <li><b>No bookmarks</b>: the book may have no contents page or large headings. The PDF is still fine.</li>
 <li><b>Text has mistakes</b>: try Strong black and white, and photograph the pages with even light.</li>
@@ -133,9 +135,25 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 const $=id=>document.getElementById(id);
 let pages=[],uid=0,stop=false,O={shadow:true,trim:0};
 const readO=()=>{O={ac:$('ac').checked,shadow:$('sh').checked,trim:Math.min(20,Math.max(0,+$('trim').value||0))/100}};
-const addFiles=e=>{const n=[];for(const f of e.target.files){const p={id:++uid,f,rot:0,split:false,strokes:[],url:URL.createObjectURL(f),thumb:''};pages.push(p);n.push(p)}draw();thumbs(n)};
-$('add').onchange=addFiles;$('cam').onchange=addFiles;
-$('add').onclick=$('cam').onclick=e=>{e.target.value=''};
+/* ---- photos are copied into the app at once, and kept for next time ---- */
+const PDB=()=>new Promise((ok,no)=>{const r=indexedDB.open('palimpsest-photos',1);r.onupgradeneeded=()=>{r.result.createObjectStore('photos',{keyPath:'id'});r.result.createObjectStore('meta',{keyPath:'k'})};r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
+const pdo=async(st,mode,fn)=>{const d=await PDB();return new Promise((ok,no)=>{const t=d.transaction(st,mode),q=fn(t.objectStore(st));t.oncomplete=()=>{ok(q&&q.result);d.close()};t.onerror=()=>no(t.error);t.onabort=()=>no(t.error)})};
+let mt=null;
+function saveMeta(){clearTimeout(mt);mt=setTimeout(()=>pdo('meta','readwrite',st=>st.put({k:'list',v:pages.map(p=>({id:p.id,rot:p.rot,split:p.split,nocrop:p.nocrop,strokes:p.strokes}))})).catch(()=>{}),500)}
+async function readFile(f){let err;for(let t=0;t<3;t++){try{return await f.arrayBuffer()}catch(e){err=e;await new Promise(r=>setTimeout(r,1200))}}throw err}
+const HINT=' This usually means the photo is only in the cloud (Google Photos) or Chrome is not allowed to read it. Try the 📁 Add from Files button, or allow Photos and videos for Chrome in the phone Settings.';
+const addFiles=async e=>{
+ const fs=[...e.target.files];if(!fs.length)return;
+ for(let i=0;i<fs.length;i++){const f=fs[i];
+  $('st').textContent='Saving photos inside the app… '+(i+1)+' of '+fs.length;
+  const p={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),name:f.name,rot:0,split:false,nocrop:false,strokes:[],thumb:''};
+  try{const buf=await readFile(f),file=new File([buf],f.name,{type:f.type||'image/jpeg'});p.f=file;p.url=URL.createObjectURL(file);
+   try{await pdo('photos','readwrite',st=>st.put({id:p.id,file}))}catch(e2){}}
+  catch(er){p.f=f;p.url='';p.bad=true;p.why='"'+f.name+'" could not be read ('+er.message+').'+HINT}
+  pages.push(p);if(i%5==4||i==fs.length-1)draw()}
+ $('st').textContent='';draw();thumbs(pages.filter(p=>!p.thumb&&!p.bad))};
+$('add').onchange=$('cam').onchange=$('add2').onchange=addFiles;
+$('add').onclick=$('cam').onclick=$('add2').onclick=e=>{e.target.value=''};
 async function thumbs(a){for(const p of a){try{
  let c=document.createElement('canvas');
  try{const b=await createImageBitmap(p.f,{resizeWidth:160,resizeQuality:'low'});c.width=b.width;c.height=b.height;c.getContext('2d').drawImage(b,0,0);b.close()}
@@ -146,8 +164,8 @@ async function thumbs(a){for(const p of a){try{
 }catch(e){p.bad=true;p.why=e.message;const w=document.getElementById('w'+p.id);if(w){w.style.display='block';w.textContent='⚠ '+e.message+' Tap ✕ to remove it.'}}
  await new Promise(r=>setTimeout(r,0))}}
 $('spl').onclick=()=>{const v=!pages.every(p=>p.split);pages.forEach(p=>p.split=v);draw()};
-$('clr').onclick=()=>{pages=[];draw()};
-function draw(){
+$('clr').onclick=()=>{if(pages.length&&!confirm('Remove all photos from the app?'))return;pages=[];pdo('photos','readwrite',st=>st.clear()).catch(()=>{});draw()};
+function draw(){saveMeta();
  $('count').textContent=pages.length+' photo(s)';
  $('list').innerHTML=pages.map((p,i)=>`<div class="card"><div class="th"><img id="t${p.id}" src="${p.thumb}" style="transform:rotate(${p.rot}deg)"></div><div><div class="row"><b>${i+1}</b>
  <button class="g" data-a="r" data-i="${i}">⟳</button><button class="g" data-a="u" data-i="${i}">↑</button><button class="g" data-a="d" data-i="${i}">↓</button><button class="g" data-a="v" data-i="${i}">👁</button><button class="g" data-a="e" data-i="${i}">🖌${p.strokes.length?'✓':''}</button><button class="g" data-a="x" data-i="${i}">✕</button></div>
@@ -160,7 +178,7 @@ $('list').onclick=e=>{
  if(a=='r'){pages[i].rot=(pages[i].rot+90)%360;pages[i].strokes=[]}
  if(a=='s'){pages[i].split=e.target.checked}
  if(a=='n'){pages[i].nocrop=e.target.checked}
- if(a=='x')pages.splice(i,1);
+ if(a=='x'){const id=pages[i].id;pages.splice(i,1);pdo('photos','readwrite',st=>st.delete(id)).catch(()=>{})}
  if(a=='u'&&i>0)[pages[i-1],pages[i]]=[pages[i],pages[i-1]];
  if(a=='d'&&i<pages.length-1)[pages[i+1],pages[i]]=[pages[i],pages[i+1]];
  if(a=='e'){openEd(pages[i]);return}
@@ -499,5 +517,9 @@ $('go').onclick=async()=>{
  $('go').style.display='block';$('stop').style.display='none';
 };
 draw();
+(async()=>{try{const m=await pdo('meta','readonly',st=>st.get('list')),ids=(m&&m.v)||[];if(!ids.length)return;
+ const all=await pdo('photos','readonly',st=>st.getAll()),by=new Map(all.map(r=>[r.id,r.file]));
+ for(const it of ids){const f=by.get(it.id);if(!f)continue;pages.push({id:it.id,f,name:f.name,rot:it.rot||0,split:!!it.split,nocrop:!!it.nocrop,strokes:it.strokes||[],url:URL.createObjectURL(f),thumb:''})}
+ if(pages.length){draw();thumbs(pages);$('st').textContent='Your '+pages.length+' photo(s) from last time are still here.'}}catch(e){}})();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script></body></html>
