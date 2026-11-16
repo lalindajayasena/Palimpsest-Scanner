@@ -4,11 +4,12 @@
 <title>Palimpsest Scanner</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <style>
 :root{--bg:#f6f1e7;--fg:#2b2a26;--card:#fffdf8;--ac:#7a4b1e;--bd:#d9cfbb}
 @media(prefers-color-scheme:dark){:root{--bg:#1d1b17;--fg:#ece6d8;--card:#2a2721;--ac:#d9a066;--bd:#443e33}}
 *{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--fg);padding:14px}
-h1{font-size:22px;margin:0 0 2px}p.s{margin:0 0 12px;opacity:.7;font-size:14px}
+h1{font-size:22px;margin:0 0 2px}h2{font-size:18px;margin:22px 0 6px}p.s{margin:0 0 12px;opacity:.7;font-size:14px}
 button,label.b{background:var(--ac);color:#fff;border:0;border-radius:10px;padding:12px 14px;font-size:16px;display:inline-block;margin:3px 2px}
 @media(prefers-color-scheme:dark){button,label.b{color:#1d1b17}}
 button.g{background:transparent;color:var(--fg);border:1px solid var(--bd);padding:8px 10px;font-size:14px}
@@ -18,33 +19,62 @@ button.g{background:transparent;color:var(--fg);border:1px solid var(--bd);paddi
 .row{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
 select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--fg);width:100%;margin:4px 0}
 .ck{display:block;margin:8px 0;font-size:16px}
-#st{margin:8px 0;font-weight:600}
+#st,#cst{margin:8px 0;font-weight:600}#rep{white-space:pre-wrap;font-size:14px;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px;display:none}
+#ed{display:none;position:fixed;inset:0;background:var(--bg);z-index:9;padding:10px;overflow:auto}
 </style></head><body>
 <h1>Palimpsest Scanner</h1>
-<p class="s">Photos in, searchable PDF out. Free. No limits.</p>
+<p class="s">Photos in, natural searchable PDF out. Free. No limits.</p>
 <input id="add" type="file" accept="image/*" multiple hidden>
 <label class="b" for="add">+ Add photos</label>
 <button class="g" id="spl">Split all (2 pages per photo)</button>
 <button class="g" id="clr">Clear all</button>
 <div id="count" style="margin:6px 0;opacity:.7"></div>
 <div id="list"></div>
+
+<label style="font-size:14px">Look of the pages</label>
 <select id="mode">
+<option value="natural">Natural (paper colour, no shadows)</option>
 <option value="clean">Clean (grey, white paper)</option>
 <option value="bw">Strong black &amp; white (best for text)</option>
 <option value="orig">Original colour</option>
 </select>
+<label class="ck"><input type="checkbox" id="sh" checked> Remove shadows (turn off if a page has big pictures)</label>
+<label style="font-size:14px">Trim the edges by % (cuts fingers and dark borders; try 3)</label>
+<input id="trim" type="number" value="0" min="0" max="20">
 <label class="ck"><input type="checkbox" id="ocr" checked> Read the text (OCR, English) so the PDF is searchable</label>
 <label class="ck"><input type="checkbox" id="txt" checked> Also save a plain text file</label>
-<label style="font-size:14px">Pages in each PDF (smaller = safer for your phone)</label>
+<label style="font-size:14px">Pages in each part (smaller = safer for your phone)</label>
 <input id="chunk" type="number" value="40" min="1">
+<label style="font-size:14px">What to save</label>
+<select id="out">
+<option value="giant">One giant PDF</option>
+<option value="parts">Separate PDF parts</option>
+<option value="both">Both</option>
+</select>
 <input id="name" type="text" value="My book" placeholder="PDF name">
 <button id="go" style="width:100%;font-size:18px">Make PDF</button>
 <button id="stop" class="g" style="width:100%;display:none">Stop and save what is done</button>
 <div id="st"></div>
+<div id="rep"></div>
+
+<h2>Combine PDFs</h2>
+<p class="s">Pick PDFs you made earlier. They are joined in name order (part1, part2, part10…). The hidden text is kept.</p>
+<input id="pdfs" type="file" accept="application/pdf,.pdf" multiple hidden>
+<label class="b" for="pdfs">Choose PDFs to combine</label>
+<div id="cst"></div>
+
+<div id="ed">
+<b>Paint over fingers or marks</b>
+<div style="font-size:14px;opacity:.7">Drag your finger over them. They turn into paper.</div>
+<input id="br" type="range" min="0.01" max="0.1" step="0.005" value="0.03" style="width:100%">
+<canvas id="ec" style="width:100%;touch-action:none;border:1px solid var(--bd);margin:6px 0"></canvas>
+<button class="g" id="und">Undo</button><button class="g" id="ecl">Clear</button><button id="dn">Done</button>
+</div>
 <script>
 const $=id=>document.getElementById(id);
-let pages=[],uid=0,stop=false;
-$('add').onchange=e=>{const n=[];for(const f of e.target.files){const p={id:++uid,f,rot:0,split:false,url:URL.createObjectURL(f),thumb:''};pages.push(p);n.push(p)}e.target.value='';draw();thumbs(n)};
+let pages=[],uid=0,stop=false,O={shadow:true,trim:0};
+const readO=()=>{O={shadow:$('sh').checked,trim:Math.min(20,Math.max(0,+$('trim').value||0))/100}};
+$('add').onchange=e=>{const n=[];for(const f of e.target.files){const p={id:++uid,f,rot:0,split:false,strokes:[],url:URL.createObjectURL(f),thumb:''};pages.push(p);n.push(p)}e.target.value='';draw();thumbs(n)};
 async function thumbs(a){for(const p of a){try{
  const b=await createImageBitmap(p.f,{resizeWidth:160,resizeQuality:'low'});
  const c=document.createElement('canvas');c.width=b.width;c.height=b.height;c.getContext('2d').drawImage(b,0,0);b.close();
@@ -56,21 +86,59 @@ $('clr').onclick=()=>{pages=[];draw()};
 function draw(){
  $('count').textContent=pages.length+' photo(s)';
  $('list').innerHTML=pages.map((p,i)=>`<div class="card"><div class="th"><img id="t${p.id}" src="${p.thumb}" style="transform:rotate(${p.rot}deg)"></div><div><div class="row"><b>${i+1}</b>
- <button class="g" data-a="r" data-i="${i}">⟳</button><button class="g" data-a="u" data-i="${i}">↑</button><button class="g" data-a="d" data-i="${i}">↓</button><button class="g" data-a="x" data-i="${i}">✕</button></div>
+ <button class="g" data-a="r" data-i="${i}">⟳</button><button class="g" data-a="u" data-i="${i}">↑</button><button class="g" data-a="d" data-i="${i}">↓</button><button class="g" data-a="e" data-i="${i}">🖌${p.strokes.length?'✓':''}</button><button class="g" data-a="x" data-i="${i}">✕</button></div>
  <label style="font-size:14px"><input type="checkbox" data-a="s" data-i="${i}" ${p.split?'checked':''}> Split into 2 pages</label></div></div>`).join('');
 }
 $('list').onclick=e=>{
  const a=e.target.dataset.a,i=+e.target.dataset.i;if(!a)return;
- if(a=='r')pages[i].rot=(pages[i].rot+90)%360;
+ if(a=='r'){pages[i].rot=(pages[i].rot+90)%360;pages[i].strokes=[]}
  if(a=='s'){pages[i].split=e.target.checked}
  if(a=='x')pages.splice(i,1);
  if(a=='u'&&i>0)[pages[i-1],pages[i]]=[pages[i],pages[i-1]];
  if(a=='d'&&i<pages.length-1)[pages[i+1],pages[i]]=[pages[i],pages[i+1]];
+ if(a=='e'){openEd(pages[i]);return}
  draw();
 };
+/* ---- shadow removal: estimate the paper brightness, then divide it out ---- */
+function flatten(c){
+ const W=c.width,H=c.height,gw=Math.max(8,Math.round(W/40)),gh=Math.max(8,Math.round(H/40));
+ const s=document.createElement('canvas');s.width=gw;s.height=gh;
+ const sx=s.getContext('2d');sx.imageSmoothingQuality='high';sx.drawImage(c,0,0,gw,gh);
+ const id=sx.getImageData(0,0,gw,gh);let d=id.data;
+ const pass=(src,r,mx)=>{const o=new Uint8ClampedArray(src.length);
+  for(let y=0;y<gh;y++)for(let x=0;x<gw;x++)for(let k=0;k<3;k++){let v=mx?0:0,n=0;
+   for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const yy=y+dy,xx=x+dx;if(yy<0||xx<0||yy>=gh||xx>=gw)continue;
+    const t=src[(yy*gw+xx)*4+k];if(mx){if(t>v)v=t}else{v+=t;n++}}
+   o[(y*gw+x)*4+k]=mx?v:v/n}
+  for(let i=3;i<o.length;i+=4)o[i]=255;return o};
+ d=pass(pass(d,2,true),2,false);id.data.set(d);sx.putImageData(id,0,0);
+ const b=document.createElement('canvas');b.width=W;b.height=H;
+ const bx=b.getContext('2d');bx.imageSmoothingQuality='high';bx.drawImage(s,0,0,W,H);
+ const x=c.getContext('2d'),im=x.getImageData(0,0,W,H),p=im.data,bg=bx.getImageData(0,0,W,H).data;
+ for(let i=0;i<p.length;i+=4)for(let k=0;k<3;k++){const q=Math.max(40,bg[i+k]);p[i+k]=Math.min(255,p[i+k]*255/q)}
+ x.putImageData(im,0,0);b.width=0;
+}
+function paint(x,W,H,st){x.strokeStyle=x.fillStyle='#fff';x.lineCap=x.lineJoin='round';
+ for(const s of st){x.lineWidth=s.r*W;x.beginPath();x.moveTo(s.pts[0][0]*W,s.pts[0][1]*H);
+  for(const q of s.pts)x.lineTo(q[0]*W+.01,q[1]*H);x.stroke()}}
+function loadImg(p){return new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=()=>no(new Error('Photo '+p.f.name+' could not be opened'));i.src=p.url})}
+async function base(p,max){
+ const b=await loadImg(p),iw=b.naturalWidth,ih=b.naturalHeight,sw=p.rot==90||p.rot==270;
+ const W0=sw?ih:iw,H0=sw?iw:ih,k0=Math.min(1,max/Math.max(W0,H0));
+ const W=Math.round(W0*k0),H=Math.round(H0*k0),c=document.createElement('canvas');c.width=W;c.height=H;
+ const x=c.getContext('2d');x.translate(W/2,H/2);x.rotate(p.rot*Math.PI/180);
+ x.drawImage(b,-iw*k0/2,-ih*k0/2,iw*k0,ih*k0);b.src='';
+ if(O.shadow)flatten(c);return c;
+}
+/* ---- looks ---- */
 function filt(o,m){
  if(m=='orig')return;
- const x=o.getContext('2d'),im=x.getImageData(0,0,o.width,o.height),d=im.data,h=new Uint32Array(256);
+ const x=o.getContext('2d'),im=x.getImageData(0,0,o.width,o.height),d=im.data;
+ if(m=='natural'){const T=[1,.975,.93],L=[[],[],[]];
+  for(let k=0;k<3;k++)for(let v=0;v<256;v++)L[k][v]=255*Math.pow(v/255,1.35)*T[k];
+  for(let i=0;i<d.length;i+=4)for(let k=0;k<3;k++)d[i+k]=L[k][d[i+k]];
+  x.putImageData(im,0,0);return}
+ const h=new Uint32Array(256);
  for(let i=0;i<d.length;i+=4){const g=(d[i]*.3+d[i+1]*.59+d[i+2]*.11)|0;d[i]=g;h[g]++}
  const n=d.length/4;let c=0,lo=0,hi=255;
  for(let v=0;v<256;v++){c+=h[v];if(c>=n*.01){lo=v;break}}
@@ -82,28 +150,62 @@ function filt(o,m){
  for(let i=0;i<d.length;i+=4){const y=L[d[i]];d[i]=d[i+1]=d[i+2]=y}
  x.putImageData(im,0,0);
 }
-function loadImg(p){return new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=()=>no(new Error('Photo '+p.f.name+' could not be opened'));i.src=p.url})}
 async function render(p,part,m){
- const b=await loadImg(p);
- const iw=b.naturalWidth,ih=b.naturalHeight,sw=p.rot==90||p.rot==270;
- const W0=sw?ih:iw,H0=sw?iw:ih,k0=Math.min(1,2600/Math.max(W0,H0));
- const W=Math.round(W0*k0),H=Math.round(H0*k0);
- const c=document.createElement('canvas');c.width=W;c.height=H;
- const x=c.getContext('2d');x.translate(W/2,H/2);x.rotate(p.rot*Math.PI/180);
- const dw=iw*k0,dh=ih*k0;x.drawImage(b,-dw/2,-dh/2,dw,dh);b.src='';
- let sx=0,w=W;if(part==1)w=W/2;if(part==2){sx=W/2;w=W/2}
- const k=Math.min(1,2000/Math.max(w,H)),o=document.createElement('canvas');
- o.width=Math.round(w*k);o.height=Math.round(H*k);
- o.getContext('2d').drawImage(c,sx,0,w,H,0,0,o.width,o.height);c.width=0;
+ const c=await base(p,2600),W=c.width,H=c.height;
+ if(p.strokes.length)paint(c.getContext('2d'),W,H,p.strokes);
+ const t=O.trim,rx=W*t,ry=H*t,rw=W-2*rx,rh=H-2*ry;
+ let sx=rx,w=rw;if(part==1)w=rw/2;if(part==2){sx=rx+rw/2;w=rw/2}
+ const k=Math.min(1,2000/Math.max(w,rh)),o=document.createElement('canvas');
+ o.width=Math.round(w*k);o.height=Math.round(rh*k);
+ o.getContext('2d').drawImage(c,sx,ry,w,rh,0,0,o.width,o.height);c.width=0;
  filt(o,m);return o;
 }
+/* ---- paint editor ---- */
+let ep=null,eb=null,ec=$('ec'),drawing=null;
+async function openEd(p){readO();ep=p;eb=await base(p,1000);ec.width=eb.width;ec.height=eb.height;$('ed').style.display='block';redraw()}
+function redraw(){const x=ec.getContext('2d');x.drawImage(eb,0,0);paint(x,ec.width,ec.height,ep.strokes)}
+function pt(e){const r=ec.getBoundingClientRect();return[(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height]}
+ec.onpointerdown=e=>{drawing={r:+$('br').value,pts:[pt(e)]};ep.strokes.push(drawing);ec.setPointerCapture(e.pointerId);redraw()};
+ec.onpointermove=e=>{if(drawing){drawing.pts.push(pt(e));redraw()}};
+ec.onpointerup=ec.onpointercancel=()=>{drawing=null};
+$('und').onclick=()=>{ep.strokes.pop();redraw()};
+$('ecl').onclick=()=>{ep.strokes=[];redraw()};
+$('dn').onclick=()=>{$('ed').style.display='none';eb.width=0;draw()};
+/* ---- page numbers ---- */
+function pageNum(words,H){let best=null;
+ for(const w of words){const t=w.text.trim();if(!/^\d{1,4}$/.test(t)||+t<1||w.confidence<40)continue;
+  if(w.bbox.y1<H*.13||w.bbox.y0>H*.87){if(!best||w.confidence>best.c)best={n:+t,c:w.confidence}}}
+ return best?best.n:null}
+function check(nums){const out=[];let prev=null,un=0;
+ for(const{pos,n}of nums){if(n==null){un++;continue}
+  if(prev){const gap=n-prev.n-1,between=pos-prev.pos-1;
+   if(n==prev.n)out.push('Page '+pos+' repeats number '+n+' (same as page '+prev.pos+').');
+   else if(n<prev.n)out.push('Page '+pos+' reads '+n+' after '+prev.n+' (out of order?).');
+   else if(gap>between){const a=prev.n+1+between,b=n-1;out.push('Missing page number'+(a<b?'s '+a+' to '+b:' '+a)+' (between your pages '+prev.pos+' and '+pos+').')}}
+  prev={pos,n}}
+ return{out,un}}
+/* ---- saving helpers ---- */
 function save(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000)}
+async function merge(bufs){const doc=await PDFLib.PDFDocument.create();
+ for(const b of bufs){const s=await PDFLib.PDFDocument.load(b);(await doc.copyPages(s,s.getPageIndices())).forEach(pg=>doc.addPage(pg))}
+ return new Blob([await doc.save()],{type:'application/pdf'})}
+$('pdfs').onchange=async e=>{
+ const fs=[...e.target.files].sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));e.target.value='';
+ if(fs.length<2){$('cst').textContent='Choose at least 2 PDFs.';return}
+ try{$('cst').textContent='Joining '+fs.length+' PDFs…';
+  const bufs=[];for(const f of fs)bufs.push(await f.arrayBuffer());
+  save(await merge(bufs),'Combined.pdf');
+  $('cst').textContent='Done! Combined.pdf is in Downloads. Order: '+fs.map(f=>f.name).join(' → ');
+ }catch(er){$('cst').textContent='Problem: '+er.message}};
 $('stop').onclick=()=>{stop=true;$('st').textContent='Stopping after this page…'};
+/* ---- main ---- */
 $('go').onclick=async()=>{
  if(!pages.length){$('st').textContent='Add photos first.';return}
- const m=$('mode').value,ocr=$('ocr').checked,tx=$('txt').checked,size=Math.max(1,+$('chunk').value||40),base=$('name').value||'scan';
- const {jsPDF}=window.jspdf,jobs=[];
+ readO();$('rep').style.display='none';
+ const m=$('mode').value,ocr=$('ocr').checked,tx=$('txt').checked,size=Math.max(1,+$('chunk').value||40),base_=$('name').value||'scan',out=$('out').value;
+ const{jsPDF}=window.jspdf,jobs=[],bufs=[],nums=[];
  pages.forEach(p=>(p.split?[1,2]:[0]).forEach(pt=>jobs.push([p,pt])));
+ const multi=jobs.length>size,wantParts=out!='giant',wantGiant=out!='parts';
  stop=false;$('go').style.display='none';$('stop').style.display='block';
  let wl=null,worker=null,done=0,part=0;const t0=Date.now();
  try{
@@ -111,14 +213,15 @@ $('go').onclick=async()=>{
   if(ocr){$('st').textContent='Loading the text reader (first time needs internet, about 1 minute)…';worker=await Tesseract.createWorker('eng')}
   for(let s=0;s<jobs.length&&!stop;s+=size){
    part++;let pdf=null,txt='';
-   for(const [p,pt] of jobs.slice(s,s+size)){
+   for(const[p,pt]of jobs.slice(s,s+size)){
     if(stop)break;
     const o=await render(p,pt,m),w=595,h=w*o.height/o.width,or=w>h?'l':'p';
     if(!pdf)pdf=new jsPDF({unit:'pt',format:[w,h],orientation:or,compress:true});else pdf.addPage([w,h],or);
     pdf.addImage(o.toDataURL('image/jpeg',.8),'JPEG',0,0,w,h);
     if(ocr){
-     const {data}=await worker.recognize(o);const sc=w/o.width;
+     const{data}=await worker.recognize(o),sc=w/o.width;
      txt+=data.text+'\n\n----- page '+(done+1)+' -----\n\n';
+     nums.push({pos:done+1,n:pageNum(data.words||[],o.height)});
      for(const wd of(data.words||[])){
       const t=wd.text.replace(/[^\x20-\x7E\u00A0-\u00FF]/g,'');if(!t.trim())continue;
       const bh=(wd.bbox.y1-wd.bbox.y0)*sc;pdf.setFontSize(Math.max(4,bh*.8));
@@ -130,11 +233,21 @@ $('go').onclick=async()=>{
     $('st').textContent='Page '+done+' of '+jobs.length+' done. About '+left+' min left. Keep this screen open.';
     await new Promise(r=>setTimeout(r,0));
    }
-   const nm=base+(jobs.length>size?'_part'+part:'');
-   if(pdf)pdf.save(nm+'.pdf');
-   if(tx&&ocr&&txt)save(new Blob([txt],{type:'text/plain'}),nm+'.txt');
+   if(pdf){
+    const nm=base_+(multi?'_part'+part:'');
+    if(wantParts||!multi)save(pdf.output('blob'),nm+'.pdf');
+    if(wantGiant&&multi)bufs.push(pdf.output('arraybuffer'));
+   }
+   if(tx&&ocr&&txt)save(new Blob([txt],{type:'text/plain'}),base_+(multi?'_part'+part:'')+'.txt');
   }
-  $('st').textContent=(stop?'Stopped. ':'Done! ')+done+' page(s) saved. Check your Downloads folder.';
+  if(bufs.length){$('st').textContent='Joining everything into one giant PDF…';
+   save(await merge(bufs),base_+(wantParts?'_FULL':'')+'.pdf')}
+  let msg=(stop?'Stopped. ':'Done! ')+done+' page(s) saved. Check your Downloads folder.';
+  if(ocr&&nums.length){const r=check(nums),read=nums.length-r.un;
+   let t='PAGE NUMBER CHECK\nRead a number on '+read+' of '+nums.length+' pages.\n\n'+(r.out.length?r.out.join('\n'):'No missing, repeated or out-of-order numbers found.');
+   $('rep').textContent=t;$('rep').style.display='block';save(new Blob([t],{type:'text/plain'}),base_+'_page-check.txt');
+   msg+=r.out.length?' Found '+r.out.length+' thing(s) to check, see below.':' Page numbers look complete.'}
+  $('st').textContent=msg;
  }catch(e){$('st').textContent='Problem: '+e.message}
  try{if(worker)await worker.terminate()}catch(e){}
  try{if(wl)wl.release()}catch(e){}
