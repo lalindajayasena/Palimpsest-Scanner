@@ -42,6 +42,7 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 <option value="bw">Strong black &amp; white (best for text)</option>
 <option value="orig">Original colour</option>
 </select>
+<label class="ck"><input type="checkbox" id="ac" checked> Find the page edges and straighten the page (auto-crop)</label>
 <label class="ck"><input type="checkbox" id="sh" checked> Remove shadows (turn off if a page has big pictures)</label>
 <label style="font-size:14px">Trim the edges by % (cuts fingers and dark borders; try 3)</label>
 <input id="trim" type="number" value="0" min="0" max="20">
@@ -93,6 +94,7 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 <li><b>Split into 2 pages</b> cuts a two-page photo down the middle.</li></ul></details>
 <details><summary>Settings explained</summary><ul>
 <li><b>Look</b>: Natural keeps paper colour. Clean is grey and white. Strong black and white is best for faded print. Original changes nothing.</li>
+<li><b>Auto-crop</b>: finds the page edges in the photo, cuts away the table, and straightens a tilted page. Tap <b>👁</b> to check the green outline. Tick <b>Skip auto-crop</b> on a photo where it goes wrong. It works best when the page is brighter than what is behind it. It does not flatten a curved page near the spine.</li>
 <li><b>Remove shadows</b>: evens out the light. Turn it off if the page has big pictures.</li>
 <li><b>Trim edges</b>: cuts a few percent from every side. Use 3 to remove fingers at the edge.</li>
 <li><b>Read the text (OCR)</b>: makes the PDF searchable and saves a .txt file. It is slow, about 15 to 40 seconds a page.</li>
@@ -130,7 +132,7 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 <script>
 const $=id=>document.getElementById(id);
 let pages=[],uid=0,stop=false,O={shadow:true,trim:0};
-const readO=()=>{O={shadow:$('sh').checked,trim:Math.min(20,Math.max(0,+$('trim').value||0))/100}};
+const readO=()=>{O={ac:$('ac').checked,shadow:$('sh').checked,trim:Math.min(20,Math.max(0,+$('trim').value||0))/100}};
 const addFiles=e=>{const n=[];for(const f of e.target.files){const p={id:++uid,f,rot:0,split:false,strokes:[],url:URL.createObjectURL(f),thumb:''};pages.push(p);n.push(p)}e.target.value='';draw();thumbs(n)};
 $('add').onchange=addFiles;$('cam').onchange=addFiles;
 async function thumbs(a){for(const p of a){try{
@@ -145,12 +147,14 @@ function draw(){
  $('count').textContent=pages.length+' photo(s)';
  $('list').innerHTML=pages.map((p,i)=>`<div class="card"><div class="th"><img id="t${p.id}" src="${p.thumb}" style="transform:rotate(${p.rot}deg)"></div><div><div class="row"><b>${i+1}</b>
  <button class="g" data-a="r" data-i="${i}">⟳</button><button class="g" data-a="u" data-i="${i}">↑</button><button class="g" data-a="d" data-i="${i}">↓</button><button class="g" data-a="v" data-i="${i}">👁</button><button class="g" data-a="e" data-i="${i}">🖌${p.strokes.length?'✓':''}</button><button class="g" data-a="x" data-i="${i}">✕</button></div>
- <label style="font-size:14px"><input type="checkbox" data-a="s" data-i="${i}" ${p.split?'checked':''}> Split into 2 pages</label></div></div>`).join('');
+ <label style="font-size:14px"><input type="checkbox" data-a="s" data-i="${i}" ${p.split?'checked':''}> Split into 2 pages</label>
+ <label style="font-size:14px;display:block"><input type="checkbox" data-a="n" data-i="${i}" ${p.nocrop?'checked':''}> Skip auto-crop</label></div></div>`).join('');
 }
 $('list').onclick=e=>{
  const a=e.target.dataset.a,i=+e.target.dataset.i;if(!a)return;
  if(a=='r'){pages[i].rot=(pages[i].rot+90)%360;pages[i].strokes=[]}
  if(a=='s'){pages[i].split=e.target.checked}
+ if(a=='n'){pages[i].nocrop=e.target.checked}
  if(a=='x')pages.splice(i,1);
  if(a=='u'&&i>0)[pages[i-1],pages[i]]=[pages[i],pages[i-1]];
  if(a=='d'&&i<pages.length-1)[pages[i+1],pages[i]]=[pages[i],pages[i+1]];
@@ -181,13 +185,13 @@ function paint(x,W,H,st){x.strokeStyle=x.fillStyle='#fff';x.lineCap=x.lineJoin='
  for(const s of st){x.lineWidth=s.r*W;x.beginPath();x.moveTo(s.pts[0][0]*W,s.pts[0][1]*H);
   for(const q of s.pts)x.lineTo(q[0]*W+.01,q[1]*H);x.stroke()}}
 function loadImg(p){return new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=()=>no(new Error('Photo '+p.f.name+' could not be opened'));i.src=p.url})}
-async function base(p,max){
+async function base(p,max,flat=true){
  const b=await loadImg(p),iw=b.naturalWidth,ih=b.naturalHeight,sw=p.rot==90||p.rot==270;
  const W0=sw?ih:iw,H0=sw?iw:ih,k0=Math.min(1,max/Math.max(W0,H0));
  const W=Math.round(W0*k0),H=Math.round(H0*k0),c=document.createElement('canvas');c.width=W;c.height=H;
  const x=c.getContext('2d');x.translate(W/2,H/2);x.rotate(p.rot*Math.PI/180);
  x.drawImage(b,-iw*k0/2,-ih*k0/2,iw*k0,ih*k0);b.src='';
- if(O.shadow)flatten(c);return c;
+ if(flat&&O.shadow)flatten(c);return c;
 }
 /* ---- looks ---- */
 function filt(o,m){
@@ -210,8 +214,11 @@ function filt(o,m){
  x.putImageData(im,0,0);
 }
 async function render(p,part,m){
- const c=await base(p,2600),W=c.width,H=c.height;
- if(p.strokes.length)paint(c.getContext('2d'),W,H,p.strokes);
+ let c=await base(p,2600,false);
+ if(p.strokes.length)paint(c.getContext('2d'),c.width,c.height,p.strokes);
+ if(O.ac&&!p.nocrop){const q=detectQuad(c);if(q){const w2=warp(c,q,2400);c.width=0;c=w2}}
+ if(O.shadow)flatten(c);
+ const W=c.width,H=c.height;
  const t=O.trim,rx=W*t,ry=H*t,rw=W-2*rx,rh=H-2*ry;
  let sx=rx,w=rw;if(part==1)w=rw/2;if(part==2){sx=rx+rw/2;w=rw/2}
  const k=Math.min(1,2000/Math.max(w,rh)),o=document.createElement('canvas');
@@ -219,10 +226,81 @@ async function render(p,part,m){
  o.getContext('2d').drawImage(c,sx,ry,w,rh,0,0,o.width,o.height);c.width=0;
  filt(o,m);return o;
 }
+/* ---- page edges ---- */
+function otsu(h,n){let sum=0;for(let i=0;i<256;i++)sum+=i*h[i];let sb=0,wb=0,mx=-1,th=128;
+ for(let i=0;i<256;i++){wb+=h[i];if(!wb)continue;const wf=n-wb;if(!wf)break;sb+=i*h[i];const mb=sb/wb,mf=(sum-sb)/wf,v=wb*wf*(mb-mf)*(mb-mf);if(v>mx){mx=v;th=i}}return th}
+function dilate(m,w,h,r){const a=new Uint8Array(w*h),b=new Uint8Array(w*h);
+ for(let y=0;y<h;y++){let d=1e9;for(let x=0;x<w;x++){const i=y*w+x;d=m[i]?0:d+1;if(d<=r)a[i]=1}d=1e9;for(let x=w-1;x>=0;x--){const i=y*w+x;d=m[i]?0:d+1;if(d<=r)a[i]=1}}
+ for(let x=0;x<w;x++){let d=1e9;for(let y=0;y<h;y++){const i=y*w+x;d=a[i]?0:d+1;if(d<=r)b[i]=1}d=1e9;for(let y=h-1;y>=0;y--){const i=y*w+x;d=a[i]?0:d+1;if(d<=r)b[i]=1}}
+ return b}
+function hull(P){P.sort((a,b)=>a[0]-b[0]||a[1]-b[1]);const cr=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]);
+ const lo=[];for(const p of P){while(lo.length>1&&cr(lo[lo.length-2],lo[lo.length-1],p)<=0)lo.pop();lo.push(p)}
+ const up=[];for(let i=P.length-1;i>=0;i--){const p=P[i];while(up.length>1&&cr(up[up.length-2],up[up.length-1],p)<=0)up.pop();up.push(p)}
+ lo.pop();up.pop();return lo.concat(up)}
+function quadFromHull(H){let best=null;
+ for(let a=-44;a<=45;a++){const r=a*Math.PI/180,cs=Math.cos(r),sn=Math.sin(r);let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
+  for(const p of H){const X=p[0]*cs+p[1]*sn,Y=-p[0]*sn+p[1]*cs;if(X<x0)x0=X;if(X>x1)x1=X;if(Y<y0)y0=Y;if(Y>y1)y1=Y}
+  const ar=(x1-x0)*(y1-y0);if(!best||ar<best.ar)best={r,ar}}
+ const cs=Math.cos(best.r),sn=Math.sin(best.r);let tl,br,tr,bl,a1=1e9,a2=-1e9,b1=-1e9,b2=1e9;
+ for(const p of H){const X=p[0]*cs+p[1]*sn,Y=-p[0]*sn+p[1]*cs,s=X+Y,d=X-Y;
+  if(s<a1){a1=s;tl=p}if(s>a2){a2=s;br=p}if(d>b1){b1=d;tr=p}if(d<b2){b2=d;bl=p}}
+ return[tl,tr,br,bl]}
+function segQuad(g,w,h){
+ const hist=new Uint32Array(256);for(let i=0;i<g.length;i++)hist[g[i]]++;
+ const th=otsu(hist,g.length),m=new Uint8Array(g.length);
+ for(let i=0;i<g.length;i++)if(g[i]>th)m[i]=1;
+ const dl=dilate(m,w,h,Math.max(3,Math.round(w/70))),lab=new Int32Array(g.length),st=new Int32Array(g.length);
+ let nl=0,bl=0,ba=0;
+ for(let s=0;s<g.length;s++){if(!dl[s]||lab[s])continue;nl++;let sp=0,a=0;st[sp++]=s;lab[s]=nl;
+  while(sp){const p=st[--sp];a++;const x=p%w;
+   if(x>0&&dl[p-1]&&!lab[p-1]){lab[p-1]=nl;st[sp++]=p-1}
+   if(x<w-1&&dl[p+1]&&!lab[p+1]){lab[p+1]=nl;st[sp++]=p+1}
+   if(p>=w&&dl[p-w]&&!lab[p-w]){lab[p-w]=nl;st[sp++]=p-w}
+   if(p<g.length-w&&dl[p+w]&&!lab[p+w]){lab[p+w]=nl;st[sp++]=p+w}}
+  if(a>ba){ba=a;bl=nl}}
+ if(!bl)return null;
+ const pts=[];let cnt=0;
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=y*w+x;if(!m[i]||lab[i]!==bl)continue;cnt++;
+  if(x==0||y==0||x==w-1||y==h-1||!m[i-1]||!m[i+1]||!m[i-w]||!m[i+w])pts.push([x,y])}
+ if(cnt<.12*w*h||cnt>.94*w*h||pts.length<8)return null;
+ const q=quadFromHull(hull(pts));
+ let ar=0;for(let i=0;i<4;i++){const p=q[i],n=q[(i+1)%4];ar+=p[0]*n[1]-n[0]*p[1]}
+ if(Math.abs(ar)/2<.15*w*h)return null;
+ const cx=(q[0][0]+q[1][0]+q[2][0]+q[3][0])/4,cy=(q[0][1]+q[1][1]+q[2][1]+q[3][1])/4;
+ return q.map(p=>[cx+(p[0]-cx)*1.012,cy+(p[1]-cy)*1.012])}
+function detectQuad(c){
+ const k=Math.min(1,320/Math.max(c.width,c.height)),w=Math.max(8,Math.round(c.width*k)),h=Math.max(8,Math.round(c.height*k));
+ const t=document.createElement('canvas');t.width=w;t.height=h;const x=t.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(c,0,0,w,h);
+ const d=x.getImageData(0,0,w,h).data,g=new Uint8Array(w*h);
+ for(let i=0;i<g.length;i++)g[i]=d[i*4]*.3+d[i*4+1]*.59+d[i*4+2]*.11;
+ t.width=0;const q=segQuad(g,w,h);if(!q)return null;
+ return q.map(p=>[p[0]*c.width/w,p[1]*c.height/h])}
+function homog(q){const[p0,p1,p2,p3]=q;
+ const dx1=p1[0]-p2[0],dx2=p3[0]-p2[0],dx3=p0[0]-p1[0]+p2[0]-p3[0],dy1=p1[1]-p2[1],dy2=p3[1]-p2[1],dy3=p0[1]-p1[1]+p2[1]-p3[1];
+ let g=0,hh=0;if(Math.abs(dx3)>1e-9||Math.abs(dy3)>1e-9){const den=dx1*dy2-dx2*dy1;g=(dx3*dy2-dx2*dy3)/den;hh=(dx1*dy3-dx3*dy1)/den}
+ const a=p1[0]-p0[0]+g*p1[0],b=p3[0]-p0[0]+hh*p3[0],c=p0[0],d=p1[1]-p0[1]+g*p1[1],e=p3[1]-p0[1]+hh*p3[1],f=p0[1];
+ return(u,v)=>{const z=g*u+hh*v+1;return[(a*u+b*v+c)/z,(d*u+e*v+f)/z]}}
+function warp(c,q,maxSide){
+ const dd=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
+ let W=Math.max(dd(q[0],q[1]),dd(q[3],q[2])),H=Math.max(dd(q[0],q[3]),dd(q[1],q[2]));
+ const s=Math.min(1,maxSide/Math.max(W,H));W=Math.max(2,Math.round(W*s));H=Math.max(2,Math.round(H*s));
+ const T=homog(q),sw=c.width,sh=c.height,S=c.getContext('2d').getImageData(0,0,sw,sh).data;
+ const o=document.createElement('canvas');o.width=W;o.height=H;const ox=o.getContext('2d'),im=ox.createImageData(W,H),D=im.data;
+ for(let j=0;j<H;j++){const v=(j+.5)/H;for(let i=0;i<W;i++){
+  const[X,Y]=T((i+.5)/W,v);let x0=Math.floor(X),y0=Math.floor(Y);const fx=X-x0,fy=Y-y0;
+  let x1=x0+1,y1=y0+1;x0=x0<0?0:x0>=sw?sw-1:x0;x1=x1<0?0:x1>=sw?sw-1:x1;y0=y0<0?0:y0>=sh?sh-1:y0;y1=y1<0?0:y1>=sh?sh-1:y1;
+  const a=(y0*sw+x0)*4,b=(y0*sw+x1)*4,cc=(y1*sw+x0)*4,d=(y1*sw+x1)*4,k=(j*W+i)*4,w00=(1-fx)*(1-fy),w10=fx*(1-fy),w01=(1-fx)*fy,w11=fx*fy;
+  D[k]=S[a]*w00+S[b]*w10+S[cc]*w01+S[d]*w11;D[k+1]=S[a+1]*w00+S[b+1]*w10+S[cc+1]*w01+S[d+1]*w11;D[k+2]=S[a+2]*w00+S[b+2]*w10+S[cc+2]*w01+S[d+2]*w11;D[k+3]=255}}
+ ox.putImageData(im,0,0);return o}
+/* ---- end page edges ---- */
 /* ---- preview ---- */
 async function preview(p){readO();$('pvb').textContent='Working…';$('pv').style.display='block';
- try{const m=$('mode').value,ims=[];
-  for(const pt of(p.split?[1,2]:[0])){const o=await render(p,pt,m),im=new Image();im.src=o.toDataURL('image/jpeg',.85);im.style.cssText='width:100%;margin:6px 0;border:1px solid var(--bd)';o.width=0;ims.push(im)}
+ try{const m=$('mode').value,ims=[],mk=src=>{const im=new Image();im.src=src;im.style.cssText='width:100%;margin:6px 0;border:1px solid var(--bd)';return im};
+  if(O.ac&&!p.nocrop){const c=await base(p,900,false),q=detectQuad(c),x=c.getContext('2d'),note=document.createElement('p');
+   if(q){x.strokeStyle='#00c853';x.lineWidth=Math.max(3,c.width/150);x.beginPath();q.forEach((pt,i)=>i?x.lineTo(pt[0],pt[1]):x.moveTo(pt[0],pt[1]));x.closePath();x.stroke();note.textContent='Green line = page edges found.'}
+   else note.textContent='No clear page edges found, so the whole photo is used.';
+   ims.push(note,mk(c.toDataURL('image/jpeg',.8)));c.width=0}
+  for(const pt of(p.split?[1,2]:[0])){const o=await render(p,pt,m);ims.push(mk(o.toDataURL('image/jpeg',.85)));o.width=0}
   $('pvb').textContent='';ims.forEach(i=>$('pvb').appendChild(i))}catch(e){$('pvb').textContent='Problem: '+e.message}}
 $('pvx').onclick=()=>{$('pv').style.display='none';$('pvb').textContent=''};
 $('hbtn').onclick=()=>$('hp').style.display='block';
