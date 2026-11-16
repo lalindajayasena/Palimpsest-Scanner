@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Palimpsest Reader</title>
+<style>
+:root{--bg:#f6f1e7;--fg:#2b2a26;--card:#fffdf8;--ac:#7a4b1e;--bd:#d9cfbb;--hl:#ffe9a8}
+body[data-t=sepia]{--bg:#efe2c3;--fg:#3b2f1e;--card:#f6ebd0;--bd:#cdb98f;--hl:#f7d98a}
+body[data-t=dark]{--bg:#16150f;--fg:#d9d3c4;--card:#211f18;--ac:#d9a066;--bd:#3a352a;--hl:#4a3f1f}
+*{box-sizing:border-box}body{margin:0;font-family:Georgia,'Noto Serif Sinhala','Noto Sans Sinhala','Noto Sans Tamil',serif;background:var(--bg);color:var(--fg)}
+button,label.b,select,input{font:inherit}
+button,label.b{background:var(--ac);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-size:16px;display:inline-block;margin:2px}
+body[data-t=dark] button,body[data-t=dark] label.b{color:#16150f}
+button.g{background:transparent;color:var(--fg);border:1px solid var(--bd)}
+select,input[type=text],input[type=number]{font-size:16px;padding:9px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--fg)}
+#lib{padding:16px;font-family:system-ui,sans-serif}#lib h1{font-size:22px;margin:0 0 4px}
+.card{display:flex;gap:8px;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px;margin:8px 0}
+#rd{display:none}
+#top{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--bd);padding:6px;z-index:5;font-family:system-ui,sans-serif;display:flex;gap:2px;flex-wrap:wrap}
+#book{max-width:40em;margin:0 auto;padding:12px 18px 150px;line-height:1.75}
+#book p{margin:0 0 1em;padding:2px 4px;border-radius:6px}#book p.on{background:var(--hl)}
+.pg{font:13px system-ui,sans-serif;opacity:.55;text-align:center;margin:28px 0 12px}
+#book h2{font-size:1.5em;line-height:1.3;text-align:center;margin:30px 0 4px;opacity:1}
+#bar{position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--bd);padding:8px;font-family:system-ui,sans-serif;z-index:5}
+#vi{font-size:12px;opacity:.7;margin-top:4px}
+#dr{display:none;position:fixed;inset:0;background:var(--bg);z-index:9;overflow:auto;padding:14px;font-family:system-ui,sans-serif}
+#dr .it{padding:12px 6px;border-bottom:1px solid var(--bd);font-size:17px}
+</style></head><body data-t="light">
+<div id="lib">
+<h1>📖 Palimpsest Reader</h1>
+<p style="margin:0 0 10px;opacity:.7;font-size:14px">Your scanned books as an e-book. Large text, dark mode, chapters, and listening.</p>
+<a href="index.html" style="color:var(--ac)">← Back to the Scanner</a>
+<div id="books" style="margin-top:10px"></div>
+<input id="imp" type="file" accept=".txt,text/plain" multiple hidden>
+<label class="b" for="imp">Import .txt files</label>
+<p style="font-size:13px;opacity:.7">Made a book earlier? Choose its .txt files (all parts together). New scans appear here by themselves.</p>
+</div>
+<div id="rd">
+<div id="top">
+<button class="g" id="bk">←</button><button class="g" id="mn">☰</button>
+<button class="g" id="sm">A−</button><button class="g" id="lg">A+</button><button class="g" id="th">🌓</button>
+</div>
+<div id="book"></div>
+<div id="bar">
+<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+<button id="pl" style="flex:1;font-size:18px">▶ Listen</button>
+<select id="rate"><option value="0.7">0.7×</option><option value="0.85">0.85×</option><option value="1" selected>1×</option><option value="1.2">1.2×</option><option value="1.5">1.5×</option></select>
+<select id="slp"><option value="0">No timer</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">60 min</option></select>
+</div>
+<div id="vi"></div>
+</div>
+<div id="dr">
+<button class="g" id="dx">✕ Close</button>
+<div style="margin:10px 0"><input id="pn" type="number" placeholder="Page" style="width:90px"> <button id="go">Go to page</button></div>
+<div style="margin:10px 0"><input id="fq" type="text" placeholder="Find a word" style="width:55%"> <button id="fd">Find next</button></div>
+<h3>Chapters</h3><div id="chs"></div>
+</div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const KW=/^(chapter|part|section|unit|lesson|පරිච්ඡේදය|කොටස|பாடம்|அத்தியாயம்|பகுதி)(?=[\s:.\-\d]|$)/i;
+/* storage */
+const db=()=>new Promise((ok,no)=>{const r=indexedDB.open('palimpsest',1);r.onupgradeneeded=()=>r.result.createObjectStore('books',{keyPath:'name'});r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
+const tx=async(m,f)=>{const d=await db();return new Promise((ok,no)=>{const q=f(d.transaction('books',m).objectStore('books'));q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)})};
+const P=(()=>{try{return JSON.parse(localStorage.rd||'{}')}catch(e){return{}}})();
+const sv=()=>{try{localStorage.rd=JSON.stringify(P)}catch(e){}};
+/* library */
+let book=null,paras=[],sel=-1;
+async function lib(){
+ let bs=[];try{bs=await tx('readonly',s=>s.getAll())}catch(e){}
+ bs.sort((a,b)=>b.date-a.date);
+ $('books').innerHTML=bs.length?bs.map((b,i)=>`<div class="card"><div><b>${esc(b.name)}</b><br><small>${b.pages.length} pages · ${(b.chapters||[]).length} chapters</small></div><div><button data-o="${i}">Read</button><button class="g" data-x="${i}">✕</button></div></div>`).join(''):'<p>No books yet. Scan with OCR on, or import a .txt file.</p>';
+ $('books').onclick=async e=>{const o=e.target.dataset.o,x=e.target.dataset.x;
+  if(o!=null)open(bs[+o]);
+  if(x!=null&&confirm('Delete "'+bs[+x].name+'" from the Reader?')){await tx('readwrite',s=>s.delete(bs[+x].name));lib()}}}
+$('imp').onchange=async e=>{
+ const fs=[...e.target.files].sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));e.target.value='';if(!fs.length)return;
+ let pages=[];
+ for(const f of fs){const t=await f.text(),bits=t.split(/\n*----- page (\d+) -----\n*/);
+  if(bits.length>1)for(let k=0;k+1<bits.length;k+=2)pages.push({pos:+bits[k+1],text:bits[k]});
+  else pages.push({pos:pages.length+1,text:t})}
+ pages.sort((a,b)=>a.pos-b.pos);
+ const chapters=[];
+ for(const p of pages){const l=p.text.split('\n').map(x=>x.trim()).filter(Boolean).slice(0,3).find(x=>KW.test(x)&&x.length<80);if(l)chapters.push({title:l,pos:p.pos})}
+ const name=fs[0].name.replace(/\.txt$/i,'').replace(/_part\d+$/i,'');
+ await tx('readwrite',s=>s.put({name,date:Date.now(),pages,chapters}));lib()};
+/* reader */
+function clean(t){
+ t=t.replace(/([A-Za-z])-\n([a-z])/g,'$1$2');
+ return t.split(/\n\s*\n/).map(x=>x.replace(/\s*\n\s*/g,' ').replace(/\s+/g,' ').trim()).filter(x=>x.length>1&&!/^[\d\W]+$/.test(x))}
+function open(b){
+ book=b;paras=[];sel=-1;const ch=new Map();
+ (b.chapters||[]).forEach(c=>{if(!ch.has(c.pos))ch.set(c.pos,[]);ch.get(c.pos).push(c.title)});
+ let h='';
+ for(const pg of b.pages){
+  h+=`<div class="pg" data-pos="${pg.pos}" id="pg${pg.pos}">— page ${pg.pos} —</div>`+(ch.get(pg.pos)||[]).map(t=>`<h2>${esc(t)}</h2>`).join('');
+  for(const t of clean(pg.text)){h+=`<p data-i="${paras.length}">${esc(t)}</p>`;paras.push(t)}}
+ $('book').innerHTML=h;
+ $('chs').innerHTML=(b.chapters||[]).length?b.chapters.map(c=>`<div class="it" data-pos="${c.pos}">${esc(c.title)} <small style="opacity:.6">p.${c.pos}</small></div>`).join(''):'<p>No chapters found for this book.</p>';
+ $('lib').style.display='none';$('rd').style.display='block';
+ apply();const at=P['p_'+b.name]||0;
+ const el=$('book').querySelector(`p[data-i="${at}"]`);if(el)el.scrollIntoView({block:'start'});
+ voiceInfo()}
+function apply(){document.body.dataset.t=P.t||'light';$('book').style.fontSize=(P.fs||22)+'px'}
+$('sm').onclick=()=>{P.fs=Math.max(14,(P.fs||22)-2);sv();apply()};
+$('lg').onclick=()=>{P.fs=Math.min(44,(P.fs||22)+2);sv();apply()};
+$('th').onclick=()=>{const o=['light','sepia','dark'];P.t=o[(o.indexOf(P.t||'light')+1)%3];sv();apply()};
+$('bk').onclick=()=>{stopSpeak();$('rd').style.display='none';$('lib').style.display='block'};
+$('mn').onclick=()=>$('dr').style.display='block';
+$('dx').onclick=()=>$('dr').style.display='none';
+function jump(sel_){const el=document.querySelector(sel_);if(el){$('dr').style.display='none';el.scrollIntoView({block:'start'});return true}return false}
+$('chs').onclick=e=>{const p=e.target.closest('.it');if(p)jump('#pg'+p.dataset.pos)};
+$('go').onclick=()=>{const n=+$('pn').value;if(!n)return;const pg=book.pages.find(p=>p.pos>=n);if(pg)jump('#pg'+pg.pos)};
+$('fd').onclick=()=>{const q=$('fq').value.trim().toLowerCase();if(!q)return;
+ const from=(sel>=0?sel:topPara())+1;
+ for(let k=0;k<paras.length;k++){const i=(from+k)%paras.length;if(paras[i].toLowerCase().includes(q)){setSel(i);jump(`p[data-i="${i}"]`);return}}
+ alert('Not found.')};
+function topPara(){const ps=$('book').querySelectorAll('p');let lo=0,hi=ps.length-1,y=window.scrollY+70;
+ while(lo<hi){const m=(lo+hi)>>1;if(ps[m].offsetTop+ps[m].offsetHeight<y)lo=m+1;else hi=m}return lo}
+let st;window.addEventListener('scroll',()=>{clearTimeout(st);st=setTimeout(()=>{if(book&&$('rd').style.display=='block'&&!sp.on){P['p_'+book.name]=topPara();sv()}},500)});
+function setSel(i){const old=$('book').querySelector('p.on');if(old)old.classList.remove('on');sel=i;const el=$('book').querySelector(`p[data-i="${i}"]`);if(el)el.classList.add('on');return el}
+$('book').onclick=e=>{const p=e.target.closest('p');if(!p)return;const i=+p.dataset.i;if(sp.on){speakPara(i)}else setSel(i)};
+/* listening */
+const sp={on:false,tok:0,i:0,ch:[],c:0};let wl=null,tm=null;
+const chunksOf=t=>{const out=[];let cur='';for(const s of t.split(/(?<=[.!?।])\s+/)){if(cur&&(cur+' '+s).length>200){out.push(cur);cur=s}else cur=cur?cur+' '+s:s}if(cur)out.push(cur);return out};
+const langOf=t=>/[\u0D80-\u0DFF]/.test(t)?'si-LK':/[\u0B80-\u0BFF]/.test(t)?'ta-IN':'en-US';
+const norm=l=>l.replace('_','-').toLowerCase();
+const voiceFor=l=>{const vs=speechSynthesis.getVoices(),p=l.slice(0,2).toLowerCase();return vs.find(v=>norm(v.lang)==l.toLowerCase())||vs.find(v=>norm(v.lang).startsWith(p))||null};
+function voiceInfo(){
+ if(!('speechSynthesis' in window)){$('vi').textContent='This browser cannot read aloud.';return}
+ const all=paras.join(' '),need=[['en',/[A-Za-z]/.test(all),'English'],['si',/[\u0D80-\u0DFF]/.test(all),'Sinhala'],['ta',/[\u0B80-\u0BFF]/.test(all),'Tamil']].filter(x=>x[1]);
+ const vs=speechSynthesis.getVoices();
+ $('vi').textContent='Voices on this phone: '+need.map(n=>n[2]+' '+(vs.some(v=>norm(v.lang).startsWith(n[0]))?'✓':'✗ (not installed)')).join(' · ')}
+if('speechSynthesis' in window)speechSynthesis.onvoiceschanged=()=>{if(book)voiceInfo()};
+function speakPara(i){
+ if(!sp.on)return;if(i>=paras.length){stopSpeak();return}
+ sp.tok++;speechSynthesis.cancel();sp.i=i;sp.ch=chunksOf(paras[i]);sp.c=0;
+ const el=setSel(i);if(el)el.scrollIntoView({block:'center',behavior:'smooth'});P['p_'+book.name]=i;sv();
+ next(sp.tok)}
+function next(tok){
+ if(!sp.on||tok!==sp.tok)return;
+ if(sp.c>=sp.ch.length){speakPara(sp.i+1);return}
+ const t=sp.ch[sp.c++],u=new SpeechSynthesisUtterance(t),l=langOf(t),v=voiceFor(l);
+ u.lang=l;if(v)u.voice=v;u.rate=+$('rate').value;
+ u.onend=()=>next(tok);u.onerror=e=>{if(e.error!=='canceled'&&e.error!=='interrupted')next(tok)};
+ speechSynthesis.speak(u)}
+async function startSpeak(){
+ if(!('speechSynthesis' in window)){alert('This browser cannot read aloud.');return}
+ sp.on=true;$('pl').textContent='⏸ Pause';
+ try{wl=await navigator.wakeLock.request('screen')}catch(e){}
+ const m=+$('slp').value;clearTimeout(tm);if(m)tm=setTimeout(stopSpeak,m*60000);
+ speakPara(sel>=0?sel:topPara())}
+function stopSpeak(){sp.on=false;sp.tok++;try{speechSynthesis.cancel()}catch(e){}$('pl').textContent='▶ Listen';clearTimeout(tm);try{if(wl)wl.release()}catch(e){}wl=null}
+$('pl').onclick=()=>sp.on?stopSpeak():startSpeak();
+$('rate').onchange=()=>{if(sp.on)speakPara(sp.i)};
+lib();
+</script></body></html>

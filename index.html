@@ -24,6 +24,7 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 </style></head><body>
 <h1>Palimpsest Scanner</h1>
 <p class="s">Photos in, natural searchable PDF out. Free. No limits.</p>
+<p style="margin:0 0 10px"><a href="reader.html" style="color:var(--ac);font-size:16px">📖 Open the Reader (read or listen to your books)</a></p>
 <input id="add" type="file" accept="image/*" multiple hidden>
 <label class="b" for="add">+ Add photos</label>
 <button class="g" id="spl">Split all (2 pages per photo)</button>
@@ -256,6 +257,10 @@ function addOutline(doc,items){
  ctx.assign(root,ctx.obj({Type:'Outlines',First:refs[0],Last:refs[refs.length-1],Count:items.length}));
  doc.catalog.set(N('Outlines'),root);doc.catalog.set(N('PageMode'),N('UseOutlines'))}
 async function withOutline(ab,items){const d=await PDFLib.PDFDocument.load(ab);addOutline(d,items);return await d.save()}
+/* ---- save the book for the Reader ---- */
+function saveBook(b){return new Promise((ok,no)=>{const r=indexedDB.open('palimpsest',1);
+ r.onupgradeneeded=()=>r.result.createObjectStore('books',{keyPath:'name'});
+ r.onsuccess=()=>{const q=r.result.transaction('books','readwrite').objectStore('books').put(b);q.onsuccess=()=>ok();q.onerror=()=>no(q.error)};r.onerror=()=>no(r.error)})}
 /* ---- main ---- */
 $('stop').onclick=()=>{stop=true;$('st').textContent='Stopping after this page…'};
 $('go').onclick=async()=>{
@@ -263,7 +268,7 @@ $('go').onclick=async()=>{
  readO();$('rep').style.display='none';
  const m=$('mode').value,ocr=$('ocr').checked,bm=ocr&&$('bm').checked,tx=$('txt').checked,lang=$('lang').value;
  const size=Math.max(1,+$('chunk').value||40),base_=$('name').value||'scan',out=$('out').value;
- const{jsPDF}=window.jspdf,jobs=[],parts=[],nums=[],heads=[],tocPages=[],notes=[],act=[];
+ const{jsPDF}=window.jspdf,jobs=[],parts=[],nums=[],heads=[],tocPages=[],notes=[],act=[],texts=[];
  pages.forEach(p=>(p.split?[1,2]:[0]).forEach(pt=>jobs.push([p,pt])));
  const multi=jobs.length>size,wantParts=out!='giant',wantGiant=out!='parts',holdAll=wantGiant||bm;
  stop=false;$('go').style.display='none';$('stop').style.display='block';
@@ -284,7 +289,7 @@ $('go').onclick=async()=>{
     if(ocr){
      const{data}=await worker.recognize(o),sc=w/o.width,pos=done+1;
      txt+=data.text+'\n\n----- page '+pos+' -----\n\n';
-     nums.push({pos,n:pageNum(data.words||[],o.height)});
+     nums.push({pos,n:pageNum(data.words||[],o.height)});texts.push({pos,text:data.text});
      if(bm){const hd=heading(data,o.height);if(hd&&(!heads.length||heads[heads.length-1].title!==hd))heads.push({pos,title:hd});
       const tl=tocFrom(data.text);if(tl.length)tocPages.push({pos,items:tl})}
      for(const wd of(data.words||[]))putWord(pdf,wd,sc,act);
@@ -308,6 +313,7 @@ $('go').onclick=async()=>{
     addOutline(doc,ents.map(e=>({title:e.title,page:e.pos-1})));
     save(new Blob([await doc.save()],{type:'application/pdf'}),base_+(wantParts?'_FULL':'')+'.pdf')}}
   let msg=(stop?'Stopped. ':'Done! ')+done+' page(s) saved. Check your Downloads folder.';
+  if(ocr&&texts.length){try{await saveBook({name:base_,date:Date.now(),pages:texts,chapters:ents.map(e=>({title:e.title,pos:e.pos}))});msg+=' The book is ready in the Reader.'}catch(e){}}
   if(ocr&&nums.length){const r=check(nums),read=nums.length-r.un;
    let t='PAGE NUMBER CHECK\nRead a number on '+read+' of '+nums.length+' pages.\n\n'+(r.out.length?r.out.join('\n'):'No missing, repeated or out-of-order numbers found.');
    if(bm)t+='\n\nCHAPTER BOOKMARKS\n'+(ents.length?'Found '+ents.length+' from '+ents[0].src+':\n'+ents.slice(0,60).map(e=>'• '+e.title+'  → page '+e.pos).join('\n'):'No chapter titles found.');
