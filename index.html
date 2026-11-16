@@ -3,6 +3,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Palimpsest Scanner</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 <style>
 :root{--bg:#f6f1e7;--fg:#2b2a26;--card:#fffdf8;--ac:#7a4b1e;--bd:#d9cfbb}
 @media(prefers-color-scheme:dark){:root{--bg:#1d1b17;--fg:#ece6d8;--card:#2a2721;--ac:#d9a066;--bd:#443e33}}
@@ -15,11 +16,12 @@ button.g{background:transparent;color:var(--fg);border:1px solid var(--bd);paddi
 .th{width:84px;height:84px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:none;background:#0001;border-radius:8px}
 .th img{max-width:84px;max-height:84px}
 .row{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
-select,input[type=text]{font-size:16px;padding:10px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--fg);width:100%;margin:4px 0}
+select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--fg);width:100%;margin:4px 0}
+.ck{display:block;margin:8px 0;font-size:16px}
 #st{margin:8px 0;font-weight:600}
 </style></head><body>
 <h1>Palimpsest Scanner</h1>
-<p class="s">Photos in, clean PDF out. Free. No limits.</p>
+<p class="s">Photos in, searchable PDF out. Free. No limits.</p>
 <input id="add" type="file" accept="image/*" multiple hidden>
 <label class="b" for="add">+ Add photos</label>
 <button class="g" id="spl">Split all (2 pages per photo)</button>
@@ -31,18 +33,29 @@ select,input[type=text]{font-size:16px;padding:10px;border-radius:10px;border:1p
 <option value="bw">Strong black &amp; white (best for text)</option>
 <option value="orig">Original colour</option>
 </select>
+<label class="ck"><input type="checkbox" id="ocr" checked> Read the text (OCR, English) so the PDF is searchable</label>
+<label class="ck"><input type="checkbox" id="txt" checked> Also save a plain text file</label>
+<label style="font-size:14px">Pages in each PDF (smaller = safer for your phone)</label>
+<input id="chunk" type="number" value="40" min="1">
 <input id="name" type="text" value="My book" placeholder="PDF name">
 <button id="go" style="width:100%;font-size:18px">Make PDF</button>
+<button id="stop" class="g" style="width:100%;display:none">Stop and save what is done</button>
 <div id="st"></div>
 <script>
 const $=id=>document.getElementById(id);
-let pages=[];
-$('add').onchange=e=>{for(const f of e.target.files)pages.push({f,rot:0,split:false,url:URL.createObjectURL(f)});e.target.value='';draw()};
+let pages=[],uid=0,stop=false;
+$('add').onchange=e=>{const n=[];for(const f of e.target.files){const p={id:++uid,f,rot:0,split:false,url:URL.createObjectURL(f),thumb:''};pages.push(p);n.push(p)}e.target.value='';draw();thumbs(n)};
+async function thumbs(a){for(const p of a){try{
+ const b=await createImageBitmap(p.f,{resizeWidth:160,resizeQuality:'low'});
+ const c=document.createElement('canvas');c.width=b.width;c.height=b.height;c.getContext('2d').drawImage(b,0,0);b.close();
+ p.thumb=c.toDataURL('image/jpeg',.6);c.width=0;
+ const el=document.getElementById('t'+p.id);if(el)el.src=p.thumb;
+}catch(e){}await new Promise(r=>setTimeout(r,0))}}
 $('spl').onclick=()=>{const v=!pages.every(p=>p.split);pages.forEach(p=>p.split=v);draw()};
 $('clr').onclick=()=>{pages=[];draw()};
 function draw(){
  $('count').textContent=pages.length+' photo(s)';
- $('list').innerHTML=pages.map((p,i)=>`<div class="card"><div class="th"><img src="${p.url}" style="transform:rotate(${p.rot}deg)"></div><div><div class="row"><b>${i+1}</b>
+ $('list').innerHTML=pages.map((p,i)=>`<div class="card"><div class="th"><img id="t${p.id}" src="${p.thumb}" style="transform:rotate(${p.rot}deg)"></div><div><div class="row"><b>${i+1}</b>
  <button class="g" data-a="r" data-i="${i}">⟳</button><button class="g" data-a="u" data-i="${i}">↑</button><button class="g" data-a="d" data-i="${i}">↓</button><button class="g" data-a="x" data-i="${i}">✕</button></div>
  <label style="font-size:14px"><input type="checkbox" data-a="s" data-i="${i}" ${p.split?'checked':''}> Split into 2 pages</label></div></div>`).join('');
 }
@@ -79,28 +92,53 @@ async function render(p,part,m){
  const x=c.getContext('2d');x.translate(W/2,H/2);x.rotate(p.rot*Math.PI/180);
  const dw=iw*k0,dh=ih*k0;x.drawImage(b,-dw/2,-dh/2,dw,dh);b.src='';
  let sx=0,w=W;if(part==1)w=W/2;if(part==2){sx=W/2;w=W/2}
- const k=Math.min(1,1800/Math.max(w,H)),o=document.createElement('canvas');
+ const k=Math.min(1,2000/Math.max(w,H)),o=document.createElement('canvas');
  o.width=Math.round(w*k);o.height=Math.round(H*k);
  o.getContext('2d').drawImage(c,sx,0,w,H,0,0,o.width,o.height);c.width=0;
  filt(o,m);return o;
 }
+function save(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000)}
+$('stop').onclick=()=>{stop=true;$('st').textContent='Stopping after this page…'};
 $('go').onclick=async()=>{
  if(!pages.length){$('st').textContent='Add photos first.';return}
- const m=$('mode').value,{jsPDF}=window.jspdf;let pdf=null,n=0;
- const tot=pages.reduce((s,p)=>s+(p.split?2:1),0);
- $('go').disabled=true;
+ const m=$('mode').value,ocr=$('ocr').checked,tx=$('txt').checked,size=Math.max(1,+$('chunk').value||40),base=$('name').value||'scan';
+ const {jsPDF}=window.jspdf,jobs=[];
+ pages.forEach(p=>(p.split?[1,2]:[0]).forEach(pt=>jobs.push([p,pt])));
+ stop=false;$('go').style.display='none';$('stop').style.display='block';
+ let wl=null,worker=null,done=0,part=0;const t0=Date.now();
  try{
-  for(const p of pages){for(const part of(p.split?[1,2]:[0])){
-   n++;$('st').textContent='Working… page '+n+' of '+tot;
-   const o=await render(p,part,m),w=595,h=w*o.height/o.width,or=w>h?'l':'p';
-   if(!pdf)pdf=new jsPDF({unit:'pt',format:[w,h],orientation:or,compress:true});else pdf.addPage([w,h],or);
-   pdf.addImage(o.toDataURL('image/jpeg',.8),'JPEG',0,0,w,h);o.width=0;
-   await new Promise(r=>setTimeout(r,0));
-  }}
-  pdf.save(($('name').value||'scan')+'.pdf');
-  $('st').textContent='Done! Check your Downloads folder.';
+  try{wl=await navigator.wakeLock.request('screen')}catch(e){}
+  if(ocr){$('st').textContent='Loading the text reader (first time needs internet, about 1 minute)…';worker=await Tesseract.createWorker('eng')}
+  for(let s=0;s<jobs.length&&!stop;s+=size){
+   part++;let pdf=null,txt='';
+   for(const [p,pt] of jobs.slice(s,s+size)){
+    if(stop)break;
+    const o=await render(p,pt,m),w=595,h=w*o.height/o.width,or=w>h?'l':'p';
+    if(!pdf)pdf=new jsPDF({unit:'pt',format:[w,h],orientation:or,compress:true});else pdf.addPage([w,h],or);
+    pdf.addImage(o.toDataURL('image/jpeg',.8),'JPEG',0,0,w,h);
+    if(ocr){
+     const {data}=await worker.recognize(o);const sc=w/o.width;
+     txt+=data.text+'\n\n----- page '+(done+1)+' -----\n\n';
+     for(const wd of(data.words||[])){
+      const t=wd.text.replace(/[^\x20-\x7E\u00A0-\u00FF]/g,'');if(!t.trim())continue;
+      const bh=(wd.bbox.y1-wd.bbox.y0)*sc;pdf.setFontSize(Math.max(4,bh*.8));
+      pdf.text(t,wd.bbox.x0*sc,wd.bbox.y1*sc-bh*.2,{renderingMode:'invisible'});
+     }
+    }
+    o.width=0;done++;
+    const per=(Date.now()-t0)/done/1000,left=Math.round(per*(jobs.length-done)/60);
+    $('st').textContent='Page '+done+' of '+jobs.length+' done. About '+left+' min left. Keep this screen open.';
+    await new Promise(r=>setTimeout(r,0));
+   }
+   const nm=base+(jobs.length>size?'_part'+part:'');
+   if(pdf)pdf.save(nm+'.pdf');
+   if(tx&&ocr&&txt)save(new Blob([txt],{type:'text/plain'}),nm+'.txt');
+  }
+  $('st').textContent=(stop?'Stopped. ':'Done! ')+done+' page(s) saved. Check your Downloads folder.';
  }catch(e){$('st').textContent='Problem: '+e.message}
- $('go').disabled=false;
+ try{if(worker)await worker.terminate()}catch(e){}
+ try{if(wl)wl.release()}catch(e){}
+ $('go').style.display='block';$('stop').style.display='none';
 };
 draw();
 </script></body></html>
