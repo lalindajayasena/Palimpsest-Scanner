@@ -2,6 +2,7 @@
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Palimpsest Reader</title>
+<link rel="manifest" href="manifest.json"><meta name="theme-color" content="#7a4b1e"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
 <style>
 :root{--bg:#f6f1e7;--fg:#2b2a26;--card:#fffdf8;--ac:#7a4b1e;--bd:#d9cfbb;--hl:#ffe9a8}
 body[data-t=sepia]{--bg:#efe2c3;--fg:#3b2f1e;--card:#f6ebd0;--bd:#cdb98f;--hl:#f7d98a}
@@ -23,12 +24,13 @@ select,input[type=text],input[type=number]{font-size:16px;padding:9px;border-rad
 #bar{position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--bd);padding:8px;font-family:system-ui,sans-serif;z-index:5}
 #vi{font-size:12px;opacity:.7;margin-top:4px}
 #dr{display:none;position:fixed;inset:0;background:var(--bg);z-index:9;overflow:auto;padding:14px;font-family:system-ui,sans-serif}
+#hp{display:none;position:fixed;inset:0;background:var(--bg);z-index:10;overflow:auto;padding:14px;font-family:system-ui,sans-serif}#hp li,#hp p{line-height:1.5;margin:6px 0}
 #dr .it{padding:12px 6px;border-bottom:1px solid var(--bd);font-size:17px}
 </style></head><body data-t="light">
 <div id="lib">
 <h1>📖 Palimpsest Reader</h1>
 <p style="margin:0 0 10px;opacity:.7;font-size:14px">Your scanned books as an e-book. Large text, dark mode, chapters, and listening.</p>
-<a href="index.html" style="color:var(--ac)">← Back to the Scanner</a>
+<a href="index.html" style="color:var(--ac)">← Back to the Scanner</a> <button class="g" id="hb1">❓ Help</button><button class="g" id="inst" style="display:none">⬇ Install app</button>
 <div id="books" style="margin-top:10px"></div>
 <input id="imp" type="file" accept=".txt,text/plain" multiple hidden>
 <label class="b" for="imp">Import .txt files</label>
@@ -52,8 +54,22 @@ select,input[type=text],input[type=number]{font-size:16px;padding:9px;border-rad
 <button class="g" id="dx">✕ Close</button>
 <div style="margin:10px 0"><input id="pn" type="number" placeholder="Page" style="width:90px"> <button id="go">Go to page</button></div>
 <div style="margin:10px 0"><input id="fq" type="text" placeholder="Find a word" style="width:55%"> <button id="fd">Find next</button></div>
+<button class="g" id="hb2">❓ Help</button>
 <h3>Chapters</h3><div id="chs"></div>
 </div>
+</div>
+<div id="hp"><button id="hpx">✕ Close help</button>
+<h2>Reader help</h2>
+<ul>
+<li><b>Get a book in:</b> scan with OCR on in the Scanner, and it appears here. Or tap <b>Import .txt files</b> and choose the .txt files from an earlier run (all parts together).</li>
+<li><b>Read:</b> tap <b>Read</b>. <b>A−</b> and <b>A+</b> change the text size. <b>🌓</b> changes the colour: paper, sepia, dark.</li>
+<li><b>☰</b> opens chapters, go to page, and find a word.</li>
+<li><b>▶ Listen</b> reads aloud from the paragraph you tapped. Tap another paragraph to jump there. Set the speed and a sleep timer next to the button.</li>
+<li><b>Voices:</b> the line at the bottom shows if English, Sinhala or Tamil voices are installed (✓ or ✗). Install missing voices in the phone's text-to-speech settings.</li>
+<li><b>Screen:</b> reading aloud needs the screen on. Chrome may stop it when the screen locks.</li>
+<li><b>Your place</b> in each book is remembered. Books are stored on this phone only.</li>
+<li><b>Text mistakes</b> come from the scan. Better light and Strong black and white help.</li>
+<li><b>Install:</b> tap <b>⬇ Install app</b>, or the Chrome menu then <b>Install app</b>, to use it from your home screen.</li></ul>
 </div>
 <script>
 const $=id=>document.getElementById(id);
@@ -153,5 +169,9 @@ async function startSpeak(){
 function stopSpeak(){sp.on=false;sp.tok++;try{speechSynthesis.cancel()}catch(e){}$('pl').textContent='▶ Listen';clearTimeout(tm);try{if(wl)wl.release()}catch(e){}wl=null}
 $('pl').onclick=()=>sp.on?stopSpeak():startSpeak();
 $('rate').onchange=()=>{if(sp.on)speakPara(sp.i)};
+const helpOpen=()=>$('hp').style.display='block';$('hb1').onclick=$('hb2').onclick=helpOpen;$('hpx').onclick=()=>$('hp').style.display='none';
+let dip=null;addEventListener('beforeinstallprompt',e=>{e.preventDefault();dip=e;$('inst').style.display='inline-block'});
+$('inst').onclick=async()=>{if(!dip)return;dip.prompt();await dip.userChoice;dip=null;$('inst').style.display='none'};
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 lib();
 </script></body></html>

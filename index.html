@@ -2,6 +2,7 @@
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Palimpsest Scanner</title>
+<link rel="manifest" href="manifest.json"><meta name="theme-color" content="#7a4b1e"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
@@ -20,13 +21,15 @@ button.g{background:transparent;color:var(--fg);border:1px solid var(--bd);paddi
 select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--fg);width:100%;margin:4px 0}
 .ck{display:block;margin:8px 0;font-size:16px}
 #st,#cst{margin:8px 0;font-weight:600}#rep{white-space:pre-wrap;font-size:14px;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px;display:none}
-#ed{display:none;position:fixed;inset:0;background:var(--bg);z-index:9;padding:10px;overflow:auto}
+#ed,#pv,#hp{display:none;position:fixed;inset:0;background:var(--bg);z-index:9;padding:12px;overflow:auto}
+#hp details{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:8px 12px;margin:8px 0}#hp summary{font-weight:700;font-size:17px;padding:4px 0}#hp li,#hp p{line-height:1.5;margin:6px 0}
 </style></head><body>
 <h1>Palimpsest Scanner</h1>
 <p class="s">Photos in, natural searchable PDF out. Free. No limits.</p>
-<p style="margin:0 0 10px"><a href="reader.html" style="color:var(--ac);font-size:16px">📖 Open the Reader (read or listen to your books)</a></p>
+<p style="margin:0 0 10px"><button class="g" id="hbtn">❓ Help</button><button class="g" id="inst" style="display:none">⬇ Install app</button><a href="reader.html" style="color:var(--ac);font-size:16px">📖 Open the Reader (read or listen to your books)</a></p>
 <input id="add" type="file" accept="image/*" multiple hidden>
-<label class="b" for="add">+ Add photos</label>
+<input id="cam" type="file" accept="image/*" capture="environment" hidden>
+<label class="b" for="add">+ Add photos</label><label class="b" for="cam">📷 Take photo</label>
 <button class="g" id="spl">Split all (2 pages per photo)</button>
 <button class="g" id="clr">Clear all</button>
 <div id="count" style="margin:6px 0;opacity:.7"></div>
@@ -72,6 +75,51 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 <label class="b" for="pdfs">Choose PDFs to combine</label>
 <div id="cst"></div>
 
+<div id="pv"><button id="pvx">✕ Close</button> <b>How this page will look</b><div id="pvb"></div></div>
+<div id="hp"><button id="hpx">✕ Close help</button>
+<h2 style="margin-top:10px">Help</h2>
+<p>Everything runs on your phone. Your photos are never uploaded anywhere.</p>
+<details open><summary>Quick start</summary><ol>
+<li>Tap <b>+ Add photos</b> and choose your book photos (or <b>📷 Take photo</b>).</li>
+<li>For two-page photos, tap <b>Split all</b>.</li>
+<li>Tap <b>👁</b> on one photo to see how the page will look.</li>
+<li>Choose the language, then tap <b>Make PDF</b>.</li>
+<li>Keep the screen open. Your files go to the <b>Downloads</b> folder.</li></ol></details>
+<details><summary>Buttons on each photo</summary><ul>
+<li><b>⟳</b> turns the photo.</li><li><b>↑ ↓</b> change the page order.</li>
+<li><b>👁</b> shows the finished page.</li>
+<li><b>🖌</b> lets you paint over fingers or marks.</li>
+<li><b>✕</b> removes the photo from the list (not from your phone).</li>
+<li><b>Split into 2 pages</b> cuts a two-page photo down the middle.</li></ul></details>
+<details><summary>Settings explained</summary><ul>
+<li><b>Look</b>: Natural keeps paper colour. Clean is grey and white. Strong black and white is best for faded print. Original changes nothing.</li>
+<li><b>Remove shadows</b>: evens out the light. Turn it off if the page has big pictures.</li>
+<li><b>Trim edges</b>: cuts a few percent from every side. Use 3 to remove fingers at the edge.</li>
+<li><b>Read the text (OCR)</b>: makes the PDF searchable and saves a .txt file. It is slow, about 15 to 40 seconds a page.</li>
+<li><b>Language</b>: pick the language of the book. The first time, extra data downloads and needs internet.</li>
+<li><b>Chapter bookmarks</b>: makes a chapter list inside the PDF. Check the report below the button.</li>
+<li><b>Pages in each part</b>: smaller is safer for your phone. 40 is good.</li>
+<li><b>What to save</b>: one giant PDF, separate parts, or both.</li></ul></details>
+<details><summary>Hundreds of photos: tips</summary><ul>
+<li>Test with 5 photos first. Check the look, the text and the report.</li>
+<li>Plug in the charger and keep the screen on. Do not switch to other apps.</li>
+<li>If your phone struggles, do 50 to 100 photos at a time and save <b>Separate PDF parts</b>. Join them later with <b>Combine PDFs</b>.</li>
+<li>If Chrome asks about downloading many files, tap <b>Allow</b>.</li></ul></details>
+<details><summary>Reader (read and listen)</summary><ul>
+<li>Open it from the link at the top. New OCR books appear there by themselves.</li>
+<li>It shows large text, three colour themes, chapters, and can read aloud.</li>
+<li>Listening needs the screen to stay on.</li></ul></details>
+<details><summary>Install as an app (works offline)</summary><ul>
+<li>Tap <b>⬇ Install app</b> if you see it. Or open the Chrome menu (three dots) and tap <b>Install app</b> or <b>Add to Home screen</b>.</li>
+<li>Then it opens from your home screen like a normal app.</li>
+<li>After you have used it once with internet, it can open without internet. OCR language data may need one online use first.</li></ul></details>
+<details><summary>Problems and fixes</summary><ul>
+<li><b>Photo could not be opened</b>: remove that photo and add it again.</li>
+<li><b>Page stops or restarts</b>: the phone ran out of memory. Use a smaller part size, like 20.</li>
+<li><b>No bookmarks</b>: the book may have no contents page or large headings. The PDF is still fine.</li>
+<li><b>Text has mistakes</b>: try Strong black and white, and photograph the pages with even light.</li>
+<li><b>New version not showing</b>: close the app and open it again, or refresh the page.</li></ul></details>
+</div>
 <div id="ed">
 <b>Paint over fingers or marks</b>
 <div style="font-size:14px;opacity:.7">Drag your finger over them. They turn into paper.</div>
@@ -83,7 +131,8 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 const $=id=>document.getElementById(id);
 let pages=[],uid=0,stop=false,O={shadow:true,trim:0};
 const readO=()=>{O={shadow:$('sh').checked,trim:Math.min(20,Math.max(0,+$('trim').value||0))/100}};
-$('add').onchange=e=>{const n=[];for(const f of e.target.files){const p={id:++uid,f,rot:0,split:false,strokes:[],url:URL.createObjectURL(f),thumb:''};pages.push(p);n.push(p)}e.target.value='';draw();thumbs(n)};
+const addFiles=e=>{const n=[];for(const f of e.target.files){const p={id:++uid,f,rot:0,split:false,strokes:[],url:URL.createObjectURL(f),thumb:''};pages.push(p);n.push(p)}e.target.value='';draw();thumbs(n)};
+$('add').onchange=addFiles;$('cam').onchange=addFiles;
 async function thumbs(a){for(const p of a){try{
  const b=await createImageBitmap(p.f,{resizeWidth:160,resizeQuality:'low'});
  const c=document.createElement('canvas');c.width=b.width;c.height=b.height;c.getContext('2d').drawImage(b,0,0);b.close();
@@ -95,7 +144,7 @@ $('clr').onclick=()=>{pages=[];draw()};
 function draw(){
  $('count').textContent=pages.length+' photo(s)';
  $('list').innerHTML=pages.map((p,i)=>`<div class="card"><div class="th"><img id="t${p.id}" src="${p.thumb}" style="transform:rotate(${p.rot}deg)"></div><div><div class="row"><b>${i+1}</b>
- <button class="g" data-a="r" data-i="${i}">⟳</button><button class="g" data-a="u" data-i="${i}">↑</button><button class="g" data-a="d" data-i="${i}">↓</button><button class="g" data-a="e" data-i="${i}">🖌${p.strokes.length?'✓':''}</button><button class="g" data-a="x" data-i="${i}">✕</button></div>
+ <button class="g" data-a="r" data-i="${i}">⟳</button><button class="g" data-a="u" data-i="${i}">↑</button><button class="g" data-a="d" data-i="${i}">↓</button><button class="g" data-a="v" data-i="${i}">👁</button><button class="g" data-a="e" data-i="${i}">🖌${p.strokes.length?'✓':''}</button><button class="g" data-a="x" data-i="${i}">✕</button></div>
  <label style="font-size:14px"><input type="checkbox" data-a="s" data-i="${i}" ${p.split?'checked':''}> Split into 2 pages</label></div></div>`).join('');
 }
 $('list').onclick=e=>{
@@ -106,6 +155,7 @@ $('list').onclick=e=>{
  if(a=='u'&&i>0)[pages[i-1],pages[i]]=[pages[i],pages[i-1]];
  if(a=='d'&&i<pages.length-1)[pages[i+1],pages[i]]=[pages[i],pages[i+1]];
  if(a=='e'){openEd(pages[i]);return}
+ if(a=='v'){preview(pages[i]);return}
  draw();
 };
 /* ---- shadow removal: estimate the paper brightness, then divide it out ---- */
@@ -169,6 +219,16 @@ async function render(p,part,m){
  o.getContext('2d').drawImage(c,sx,ry,w,rh,0,0,o.width,o.height);c.width=0;
  filt(o,m);return o;
 }
+/* ---- preview ---- */
+async function preview(p){readO();$('pvb').textContent='Working…';$('pv').style.display='block';
+ try{const m=$('mode').value,ims=[];
+  for(const pt of(p.split?[1,2]:[0])){const o=await render(p,pt,m),im=new Image();im.src=o.toDataURL('image/jpeg',.85);im.style.cssText='width:100%;margin:6px 0;border:1px solid var(--bd)';o.width=0;ims.push(im)}
+  $('pvb').textContent='';ims.forEach(i=>$('pvb').appendChild(i))}catch(e){$('pvb').textContent='Problem: '+e.message}}
+$('pvx').onclick=()=>{$('pv').style.display='none';$('pvb').textContent=''};
+$('hbtn').onclick=()=>$('hp').style.display='block';
+$('hpx').onclick=()=>$('hp').style.display='none';
+let dip=null;addEventListener('beforeinstallprompt',e=>{e.preventDefault();dip=e;$('inst').style.display='inline-block'});
+$('inst').onclick=async()=>{if(!dip)return;dip.prompt();await dip.userChoice;dip=null;$('inst').style.display='none'};
 /* ---- paint editor ---- */
 let ep=null,eb=null,ec=$('ec'),drawing=null;
 async function openEd(p){readO();ep=p;eb=await base(p,1000);ec.width=eb.width;ec.height=eb.height;$('ed').style.display='block';redraw()}
@@ -327,4 +387,5 @@ $('go').onclick=async()=>{
  $('go').style.display='block';$('stop').style.display='none';
 };
 draw();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script></body></html>
