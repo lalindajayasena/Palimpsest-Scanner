@@ -133,24 +133,25 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 const $=id=>document.getElementById(id);
 let pages=[],uid=0,stop=false,O={shadow:true,trim:0};
 const readO=()=>{O={ac:$('ac').checked,shadow:$('sh').checked,trim:Math.min(20,Math.max(0,+$('trim').value||0))/100}};
-const addFiles=e=>{const n=[];for(const f of e.target.files){const p={id:++uid,f,rot:0,split:false,strokes:[],url:URL.createObjectURL(f),thumb:''};pages.push(p);n.push(p)}e.target.value='';draw();thumbs(n)};
+const addFiles=e=>{const n=[];for(const f of e.target.files){const p={id:++uid,f,rot:0,split:false,strokes:[],url:URL.createObjectURL(f),thumb:''};pages.push(p);n.push(p)}draw();thumbs(n)};
 $('add').onchange=addFiles;$('cam').onchange=addFiles;
+$('add').onclick=$('cam').onclick=e=>{e.target.value=''};
 async function thumbs(a){for(const p of a){try{
- const b=await createImageBitmap(p.f,{resizeWidth:160,resizeQuality:'low'});
- const c=document.createElement('canvas');c.width=b.width;c.height=b.height;c.getContext('2d').drawImage(b,0,0);b.close();
+ let c=document.createElement('canvas');
+ try{const b=await createImageBitmap(p.f,{resizeWidth:160,resizeQuality:'low'});c.width=b.width;c.height=b.height;c.getContext('2d').drawImage(b,0,0);b.close()}
+ catch(e){const im=await getSource(p),w=im.naturalWidth||im.width,h=im.naturalHeight||im.height,k=160/Math.max(w,h);
+  c.width=Math.max(1,w*k|0);c.height=Math.max(1,h*k|0);c.getContext('2d').drawImage(im,0,0,c.width,c.height);if(im.close)im.close();else{im.src='';if(im._u)URL.revokeObjectURL(im._u)}}
  p.thumb=c.toDataURL('image/jpeg',.6);c.width=0;
  const el=document.getElementById('t'+p.id);if(el)el.src=p.thumb;
-}catch(e){try{const im=await loadImg(p),k=160/Math.max(im.naturalWidth,im.naturalHeight),c=document.createElement('canvas');
- c.width=Math.max(1,im.naturalWidth*k|0);c.height=Math.max(1,im.naturalHeight*k|0);c.getContext('2d').drawImage(im,0,0,c.width,c.height);
- p.thumb=c.toDataURL('image/jpeg',.6);im.src='';c.width=0;const el=document.getElementById('t'+p.id);if(el)el.src=p.thumb}
- catch(e2){p.bad=true;const w=document.getElementById('w'+p.id);if(w)w.style.display='block'}}await new Promise(r=>setTimeout(r,0))}}
+}catch(e){p.bad=true;p.why=e.message;const w=document.getElementById('w'+p.id);if(w){w.style.display='block';w.textContent='⚠ '+e.message+' Tap ✕ to remove it.'}}
+ await new Promise(r=>setTimeout(r,0))}}
 $('spl').onclick=()=>{const v=!pages.every(p=>p.split);pages.forEach(p=>p.split=v);draw()};
 $('clr').onclick=()=>{pages=[];draw()};
 function draw(){
  $('count').textContent=pages.length+' photo(s)';
  $('list').innerHTML=pages.map((p,i)=>`<div class="card"><div class="th"><img id="t${p.id}" src="${p.thumb}" style="transform:rotate(${p.rot}deg)"></div><div><div class="row"><b>${i+1}</b>
  <button class="g" data-a="r" data-i="${i}">⟳</button><button class="g" data-a="u" data-i="${i}">↑</button><button class="g" data-a="d" data-i="${i}">↓</button><button class="g" data-a="v" data-i="${i}">👁</button><button class="g" data-a="e" data-i="${i}">🖌${p.strokes.length?'✓':''}</button><button class="g" data-a="x" data-i="${i}">✕</button></div>
- <div id="w${p.id}" style="display:${p.bad?'block':'none'};color:#c0392b;font-size:13px">⚠ This photo cannot be opened. Tap ✕ to remove it.</div>
+ <div id="w${p.id}" style="display:${p.bad?'block':'none'};color:#c0392b;font-size:13px">⚠ ${esc(p.why||'This photo cannot be opened.')} Tap ✕ to remove it.</div>
  <label style="font-size:14px"><input type="checkbox" data-a="s" data-i="${i}" ${p.split?'checked':''}> Split into 2 pages</label>
  <label style="font-size:14px;display:block"><input type="checkbox" data-a="n" data-i="${i}" ${p.nocrop?'checked':''}> Skip auto-crop</label></div></div>`).join('');
 }
@@ -189,17 +190,38 @@ function paint(x,W,H,st){x.strokeStyle=x.fillStyle='#fff';x.lineCap=x.lineJoin='
  for(const s of st){x.lineWidth=s.r*W;x.beginPath();x.moveTo(s.pts[0][0]*W,s.pts[0][1]*H);
   for(const q of s.pts)x.lineTo(q[0]*W+.01,q[1]*H);x.stroke()}}
 function loadImg(p){return new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=()=>no(new Error('Photo '+p.f.name+' could not be opened'));i.src=p.url})}
+const esc=t=>String(t).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+function sniff(u){const h=[...u.slice(0,12)].map(x=>x.toString(16).padStart(2,'0')).join(' '),a=(i,t)=>[...t].every((c,k)=>u[i+k]===c.charCodeAt(0));let k='unknown';
+ if(u[0]==0xFF&&u[1]==0xD8)k='jpeg';else if(u[0]==0x89&&a(1,'PNG'))k='png';else if(a(0,'RIFF')&&a(8,'WEBP'))k='webp';else if(a(0,'GIF8'))k='gif';else if(a(0,'BM'))k='bmp';
+ else if(a(4,'ftyp')){const br=String.fromCharCode(...u.slice(8,12));k=/^(heic|heix|hevc|hevx|heim|heis|mif1|msf1)$/.test(br)?'heic':/^avi[fs]$/.test(br)?'avif':'video or other ('+br+')'}
+ else if(a(0,'%PDF'))k='pdf';return{k,h}}
+const MT={jpeg:'image/jpeg',png:'image/png',webp:'image/webp',gif:'image/gif',bmp:'image/bmp',avif:'image/avif'};
+async function heicToBlob(blob){
+ if(!window.heic2any)await new Promise((ok,no)=>{const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';sc.onload=ok;sc.onerror=()=>no(new Error('could not load the HEIC converter (needs internet)'));document.head.appendChild(sc)});
+ const r=await heic2any({blob,toType:'image/jpeg',quality:.9});return Array.isArray(r)?r[0]:r}
 async function getSource(p){
- if(!p.f.size)throw new Error('"'+p.f.name+'" is empty (0 KB). It may not be fully downloaded to the phone');
- for(let t=0;t<2;t++){try{return await loadImg(p)}catch(e){await new Promise(r=>setTimeout(r,400))}}
- try{return await createImageBitmap(p.f)}catch(e){}
- throw new Error('"'+p.f.name+'" could not be opened ('+(p.f.type||'unknown type')+', '+Math.round(p.f.size/1024)+' KB)')}
+ const why=[];
+ if(!p.f.size)throw new Error('"'+p.f.name+'" is empty (0 KB). It may not be fully downloaded to the phone.');
+ try{return await loadImg(p)}catch(e){why.push('normal open failed')}
+ let u8=null,sn={k:'?',h:''};
+ try{u8=new Uint8Array(await p.f.arrayBuffer());sn=sniff(u8)}catch(e){why.push('the phone would not let the app read the file ('+e.message+')')}
+ if(u8){
+  const mt=MT[sn.k];
+  if(mt||sn.k=='unknown'){
+   const url=URL.createObjectURL(new Blob([u8],{type:mt||'image/jpeg'}));
+   try{const im=await loadImg({f:p.f,url});im._u=url;return im}catch(e){URL.revokeObjectURL(url);why.push('re-open failed')}
+   try{return await createImageBitmap(new Blob([u8],{type:mt||'image/jpeg'}))}catch(e){why.push('bitmap failed')}}
+  if(sn.k=='heic'){
+   try{const jb=await heicToBlob(new Blob([u8],{type:'image/heic'})),url=URL.createObjectURL(jb);
+    try{const im=await loadImg({f:p.f,url});im._u=url;return im}catch(e){URL.revokeObjectURL(url);why.push('converted HEIC would not open')}}
+   catch(e){why.push('HEIC conversion failed: '+e.message)}}}
+ throw new Error('"'+p.f.name+'" could not be opened. Type: '+(p.f.type||'none')+', '+Math.round(p.f.size/1024)+' KB, looks like: '+sn.k+' ['+sn.h+']. '+why.join('; ')+'.')}
 async function base(p,max,flat=true){
  const b=await getSource(p),iw=b.naturalWidth||b.width,ih=b.naturalHeight||b.height,sw=p.rot==90||p.rot==270;
  const W0=sw?ih:iw,H0=sw?iw:ih,k0=Math.min(1,max/Math.max(W0,H0));
  const W=Math.round(W0*k0),H=Math.round(H0*k0),c=document.createElement('canvas');c.width=W;c.height=H;
  const x=c.getContext('2d');x.translate(W/2,H/2);x.rotate(p.rot*Math.PI/180);
- x.drawImage(b,-iw*k0/2,-ih*k0/2,iw*k0,ih*k0);if(b.close)b.close();else b.src='';
+ x.drawImage(b,-iw*k0/2,-ih*k0/2,iw*k0,ih*k0);if(b.close)b.close();else{b.src='';if(b._u)URL.revokeObjectURL(b._u)}
  if(flat&&O.shadow)flatten(c);return c;
 }
 /* ---- looks ---- */
