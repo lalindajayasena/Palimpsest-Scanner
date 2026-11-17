@@ -25,8 +25,9 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 #hp details{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:8px 12px;margin:8px 0}#hp summary{font-weight:700;font-size:17px;padding:4px 0}#hp li,#hp p{line-height:1.5;margin:6px 0}
 </style></head><body>
 <h1>Palimpsest Scanner</h1>
+<div id="ver" style="font-size:12px;opacity:.6;margin:-2px 0 6px">Version 8 · 17 Nov 2026</div>
 <p class="s">Photos in, natural searchable PDF out. Free. No limits.</p>
-<p style="margin:0 0 10px"><button class="g" id="hbtn">❓ Help</button><button class="g" id="inst" style="display:none">⬇ Install app</button><a href="reader.html" style="color:var(--ac);font-size:16px">📖 Open the Reader (read or listen to your books)</a></p>
+<p style="margin:0 0 10px"><button class="g" id="hbtn">❓ Help</button><button class="g" id="upd">🔄 Update app</button><button class="g" id="inst" style="display:none">⬇ Install app</button><a href="reader.html" style="color:var(--ac);font-size:16px">📖 Open the Reader (read or listen to your books)</a></p>
 <input id="add" type="file" accept="image/*" multiple hidden>
 <input id="cam" type="file" accept="image/*" capture="environment" hidden>
 <input id="add2" type="file" accept="image/jpeg,image/png,image/webp,application/octet-stream" multiple hidden>
@@ -352,6 +353,7 @@ async function preview(p){readO();$('pvb').textContent='Working…';$('pv').styl
   for(const pt of(p.split?[1,2]:[0])){const o=await render(p,pt,m);ims.push(mk(o.toDataURL('image/jpeg',.85)));o.width=0}
   $('pvb').textContent='';ims.forEach(i=>$('pvb').appendChild(i))}catch(e){$('pvb').textContent='Problem: '+e.message}}
 $('pvx').onclick=()=>{$('pv').style.display='none';$('pvb').textContent=''};
+$('upd').onclick=async()=>{try{for(const r of await navigator.serviceWorker.getRegistrations())await r.unregister();for(const k of await caches.keys())await caches.delete(k)}catch(e){}location.reload()};
 $('hbtn').onclick=()=>$('hp').style.display='block';
 $('hpx').onclick=()=>$('hp').style.display='none';
 let dip=null;addEventListener('beforeinstallprompt',e=>{e.preventDefault();dip=e;$('inst').style.display='inline-block'});
