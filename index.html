@@ -21,11 +21,11 @@ button.g{background:transparent;color:var(--fg);border:1px solid var(--bd);paddi
 select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--fg);width:100%;margin:4px 0}
 .ck{display:block;margin:8px 0;font-size:16px}
 #st,#cst{margin:8px 0;font-weight:600}#rep{white-space:pre-wrap;font-size:14px;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px;display:none}
-#ed,#pv,#hp{display:none;position:fixed;inset:0;background:var(--bg);z-index:9;padding:12px;overflow:auto}
+#ed,#pv,#hp,#cp{display:none;position:fixed;inset:0;background:var(--bg);z-index:9;padding:12px;overflow:auto}
 #hp details{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:8px 12px;margin:8px 0}#hp summary{font-weight:700;font-size:17px;padding:4px 0}#hp li,#hp p{line-height:1.5;margin:6px 0}
 </style></head><body>
 <h1>Palimpsest Scanner</h1>
-<div id="ver" style="font-size:12px;opacity:.6;margin:-2px 0 6px">Version 8 · 17 Nov 2026</div>
+<div id="ver" style="font-size:12px;opacity:.6;margin:-2px 0 6px">Version 9 · 17 Nov 2026</div>
 <p class="s">Photos in, natural searchable PDF out. Free. No limits.</p>
 <p style="margin:0 0 10px"><button class="g" id="hbtn">❓ Help</button><button class="g" id="upd">🔄 Update app</button><button class="g" id="inst" style="display:none">⬇ Install app</button><a href="reader.html" style="color:var(--ac);font-size:16px">📖 Open the Reader (read or listen to your books)</a></p>
 <input id="add" type="file" accept="image/*" multiple hidden>
@@ -44,8 +44,11 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 <option value="bw">Strong black &amp; white (best for text)</option>
 <option value="orig">Original colour</option>
 </select>
-<label class="ck"><input type="checkbox" id="ac" checked> Find the page edges and straighten the page (auto-crop)</label>
+<label class="ck"><input type="checkbox" id="ac"> Auto-crop: try to find the page edges (experimental, check with 👁)</label>
 <label class="ck"><input type="checkbox" id="sh" checked> Remove shadows (turn off if a page has big pictures)</label>
+<select id="shs"><option value="1">Shadow removal: normal</option><option value="2">Shadow removal: strong (for leftover shadows)</option></select>
+<div style="margin:8px 0"><button class="g" id="cpb">✂ Set crop and tilt for all photos</button><button class="g" id="cpr">Reset</button> <span id="cps" style="font-size:13px;opacity:.7">No crop set</span></div>
+<label style="font-size:13px;opacity:.7">The crop is shown on photo number <input id="cpn" type="number" value="1" min="1" style="width:70px;display:inline-block"></label>
 <label style="font-size:14px">Trim the edges by % (cuts fingers and dark borders; try 3)</label>
 <input id="trim" type="number" value="0" min="0" max="20">
 <label class="ck"><input type="checkbox" id="ocr" checked> Read the text (OCR) so the PDF is searchable</label>
@@ -96,7 +99,9 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 <li><b>Split into 2 pages</b> cuts a two-page photo down the middle.</li></ul></details>
 <details><summary>Settings explained</summary><ul>
 <li><b>Look</b>: Natural keeps paper colour. Clean is grey and white. Strong black and white is best for faded print. Original changes nothing.</li>
-<li><b>Auto-crop</b>: finds the page edges in the photo, cuts away the table, and straightens a tilted page. Tap <b>👁</b> to check the green outline. Tick <b>Skip auto-crop</b> on a photo where it goes wrong. It works best when the page is brighter than what is behind it. It does not flatten a curved page near the spine.</li>
+<li><b>Set crop and tilt for all photos</b>: the most reliable way to remove the table and fingers at the edges. Choose a typical photo, drag the sliders until the green box fits the page, then Done. The same crop is used for every photo, so photograph all pages the same way.</li>
+<li><b>Shadow removal strong</b>: use it when shadows are still left. It can slightly grey very big headings.</li>
+<li><b>Auto-crop (experimental)</b>: finds the page edges in the photo, cuts away the table, and straightens a tilted page. Tap <b>👁</b> to check the green outline. Tick <b>Skip auto-crop</b> on a photo where it goes wrong. It works best when the page is brighter than what is behind it. It does not flatten a curved page near the spine.</li>
 <li><b>Remove shadows</b>: evens out the light. Turn it off if the page has big pictures.</li>
 <li><b>Trim edges</b>: cuts a few percent from every side. Use 3 to remove fingers at the edge.</li>
 <li><b>Read the text (OCR)</b>: makes the PDF searchable and saves a .txt file. It is slow, about 15 to 40 seconds a page.</li>
@@ -125,6 +130,14 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 <li><b>Text has mistakes</b>: try Strong black and white, and photograph the pages with even light.</li>
 <li><b>New version not showing</b>: close the app and open it again, or refresh the page.</li></ul></details>
 </div>
+<div id="cp"><button id="cpd">✔ Done</button> <button class="g" id="cpz">Reset</button> <b>Crop and tilt</b>
+<div style="font-size:14px;opacity:.7">The green box is kept. The dark part is cut away. This is used for every photo, so use a photo that is typical.</div>
+<div id="cpt"></div><canvas id="cpc" style="width:100%;border:1px solid var(--bd);margin:6px 0"></canvas>
+<div style="font-size:15px">Tilt <span id="v_tilt"></span><input id="c_tilt" type="range" min="-10" max="10" step="0.1" value="0" style="width:100%">
+Left <span id="v_l"></span><input id="c_l" type="range" min="0" max="45" step="0.5" value="0" style="width:100%">
+Right <span id="v_r"></span><input id="c_r" type="range" min="0" max="45" step="0.5" value="0" style="width:100%">
+Top <span id="v_t"></span><input id="c_t" type="range" min="0" max="45" step="0.5" value="0" style="width:100%">
+Bottom <span id="v_b"></span><input id="c_b" type="range" min="0" max="45" step="0.5" value="0" style="width:100%"></div></div>
 <div id="ed">
 <b>Paint over fingers or marks</b>
 <div style="font-size:14px;opacity:.7">Drag your finger over them. They turn into paper.</div>
@@ -134,8 +147,8 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 </div>
 <script>
 const $=id=>document.getElementById(id);
-let pages=[],uid=0,stop=false,O={shadow:true,trim:0};
-const readO=()=>{O={ac:$('ac').checked,shadow:$('sh').checked,trim:Math.min(20,Math.max(0,+$('trim').value||0))/100}};
+let pages=[],uid=0,stop=false,CROP=null,O={shadow:true,trim:0};
+const readO=()=>{O={ac:$('ac').checked,shadow:$('sh').checked,shs:+$('shs').value,crop:CROP,trim:Math.min(20,Math.max(0,+$('trim').value||0))/100}};
 /* ---- photos are copied into the app at once, and kept for next time ---- */
 const PDB=()=>new Promise((ok,no)=>{const r=indexedDB.open('palimpsest-photos',1);r.onupgradeneeded=()=>{r.result.createObjectStore('photos',{keyPath:'id'});r.result.createObjectStore('meta',{keyPath:'k'})};r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
 const pdo=async(st,mode,fn)=>{const d=await PDB();return new Promise((ok,no)=>{const t=d.transaction(st,mode),q=fn(t.objectStore(st));t.oncomplete=()=>{ok(q&&q.result);d.close()};t.onerror=()=>no(t.error);t.onabort=()=>no(t.error)})};
@@ -188,7 +201,7 @@ $('list').onclick=e=>{
 };
 /* ---- shadow removal: estimate the paper brightness, then divide it out ---- */
 function flatten(c){
- const W=c.width,H=c.height,gw=Math.max(8,Math.round(W/40)),gh=Math.max(8,Math.round(H/40));
+ const W=c.width,H=c.height,dv=O.shs==2?64:40,gw=Math.max(8,Math.round(W/dv)),gh=Math.max(8,Math.round(H/dv));
  const s=document.createElement('canvas');s.width=gw;s.height=gh;
  const sx=s.getContext('2d');sx.imageSmoothingQuality='high';sx.drawImage(c,0,0,gw,gh);
  const id=sx.getImageData(0,0,gw,gh);let d=id.data;
@@ -198,7 +211,7 @@ function flatten(c){
     const t=src[(yy*gw+xx)*4+k];if(mx){if(t>v)v=t}else{v+=t;n++}}
    o[(y*gw+x)*4+k]=mx?v:v/n}
   for(let i=3;i<o.length;i+=4)o[i]=255;return o};
- d=pass(pass(d,2,true),2,false);id.data.set(d);sx.putImageData(id,0,0);
+ d=pass(pass(d,O.shs==2?1:2,true),2,false);id.data.set(d);sx.putImageData(id,0,0);
  const b=document.createElement('canvas');b.width=W;b.height=H;
  const bx=b.getContext('2d');bx.imageSmoothingQuality='high';bx.drawImage(s,0,0,W,H);
  const x=c.getContext('2d'),im=x.getImageData(0,0,W,H),p=im.data,bg=bx.getImageData(0,0,W,H).data;
@@ -267,6 +280,7 @@ async function render(p,part,m){
  let c=await base(p,2600,false);
  if(p.strokes.length)paint(c.getContext('2d'),c.width,c.height,p.strokes);
  if(O.ac&&!p.nocrop){const q=detectQuad(c);if(q){const w2=warp(c,q,2400);c.width=0;c=w2}}
+ if(O.crop)c=applyCrop(c,O.crop);
  if(O.shadow)flatten(c);
  const W=c.width,H=c.height;
  const t=O.trim,rx=W*t,ry=H*t,rw=W-2*rx,rh=H-2*ry;
@@ -295,10 +309,19 @@ function quadFromHull(H){let best=null;
  for(const p of H){const X=p[0]*cs+p[1]*sn,Y=-p[0]*sn+p[1]*cs,s=X+Y,d=X-Y;
   if(s<a1){a1=s;tl=p}if(s>a2){a2=s;br=p}if(d>b1){b1=d;tr=p}if(d<b2){b2=d;bl=p}}
  return[tl,tr,br,bl]}
-function segQuad(g,w,h){
- const hist=new Uint32Array(256);for(let i=0;i<g.length;i++)hist[g[i]]++;
- const th=otsu(hist,g.length),m=new Uint8Array(g.length);
- for(let i=0;i<g.length;i++)if(g[i]>th)m[i]=1;
+function otsu3(h,n){const P=new Float64Array(257),S=new Float64Array(257);for(let i=0;i<256;i++){P[i+1]=P[i]+h[i];S[i+1]=S[i]+i*h[i]}
+ let best=-1,t1=85;const mt=S[256]/n;
+ for(let a=1;a<255;a++)for(let b=a+1;b<256;b++){const w0=P[a],w1=P[b]-P[a],w2=n-P[b];if(!w0||!w1||!w2)continue;
+  const m0=S[a]/w0,m1=(S[b]-S[a])/w1,m2=(S[256]-S[b])/w2,v=w0*(m0-mt)*(m0-mt)+w1*(m1-mt)*(m1-mt)+w2*(m2-mt)*(m2-mt);if(v>best){best=v;t1=a-1}}
+ return t1}
+function validQuad(q,w,h){let ar=0;const L=[];
+ for(let i=0;i<4;i++){const p=q[i],n=q[(i+1)%4];ar+=p[0]*n[1]-n[0]*p[1];L.push(Math.hypot(n[0]-p[0],n[1]-p[1]))}
+ ar=Math.abs(ar)/2;if(ar<.25*w*h||L.some(x=>x<1))return 0;
+ if(Math.min(L[0],L[2])/Math.max(L[0],L[2])<.6||Math.min(L[1],L[3])/Math.max(L[1],L[3])<.6)return 0;
+ for(let i=0;i<4;i++){const a=q[(i+3)%4],b=q[i],c=q[(i+1)%4],cs=((a[0]-b[0])*(c[0]-b[0])+(a[1]-b[1])*(c[1]-b[1]))/(L[(i+3)%4]*L[i]),an=Math.acos(Math.max(-1,Math.min(1,cs)))*180/Math.PI;if(an<65||an>115)return 0}
+ return ar}
+function quadAt(g,w,h,th){
+ const m=new Uint8Array(g.length);for(let i=0;i<g.length;i++)if(g[i]>th)m[i]=1;
  const dl=dilate(m,w,h,Math.max(3,Math.round(w/70))),lab=new Int32Array(g.length),st=new Int32Array(g.length);
  let nl=0,bl=0,ba=0;
  for(let s=0;s<g.length;s++){if(!dl[s]||lab[s])continue;nl++;let sp=0,a=0;st[sp++]=s;lab[s]=nl;
@@ -313,11 +336,15 @@ function segQuad(g,w,h){
  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=y*w+x;if(!m[i]||lab[i]!==bl)continue;cnt++;
   if(x==0||y==0||x==w-1||y==h-1||!m[i-1]||!m[i+1]||!m[i-w]||!m[i+w])pts.push([x,y])}
  if(cnt<.12*w*h||cnt>.94*w*h||pts.length<8)return null;
- const q=quadFromHull(hull(pts));
- let ar=0;for(let i=0;i<4;i++){const p=q[i],n=q[(i+1)%4];ar+=p[0]*n[1]-n[0]*p[1]}
- if(Math.abs(ar)/2<.15*w*h)return null;
- const cx=(q[0][0]+q[1][0]+q[2][0]+q[3][0])/4,cy=(q[0][1]+q[1][1]+q[2][1]+q[3][1])/4;
- return q.map(p=>[cx+(p[0]-cx)*1.012,cy+(p[1]-cy)*1.012])}
+ return quadFromHull(hull(pts))}
+function segQuad(g,w,h){
+ const hist=new Uint32Array(256);for(let i=0;i<g.length;i++)hist[g[i]]++;
+ const t2=otsu(hist,g.length),t1=otsu3(hist,g.length),C=[t2];if(t1<t2-8)C.push(t1);
+ let best=null,ba=0;
+ for(const th of C){const q=quadAt(g,w,h,th);if(!q)continue;const a=validQuad(q,w,h);if(a>ba){ba=a;best=q}}
+ if(!best)return null;
+ const cx=(best[0][0]+best[1][0]+best[2][0]+best[3][0])/4,cy=(best[0][1]+best[1][1]+best[2][1]+best[3][1])/4;
+ return best.map(p=>[cx+(p[0]-cx)*1.012,cy+(p[1]-cy)*1.012])}
 function detectQuad(c){
  const k=Math.min(1,320/Math.max(c.width,c.height)),w=Math.max(8,Math.round(c.width*k)),h=Math.max(8,Math.round(c.height*k));
  const t=document.createElement('canvas');t.width=w;t.height=h;const x=t.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(c,0,0,w,h);
@@ -343,6 +370,31 @@ function warp(c,q,maxSide){
   D[k]=S[a]*w00+S[b]*w10+S[cc]*w01+S[d]*w11;D[k+1]=S[a+1]*w00+S[b+1]*w10+S[cc+1]*w01+S[d+1]*w11;D[k+2]=S[a+2]*w00+S[b+2]*w10+S[cc+2]*w01+S[d+2]*w11;D[k+3]=255}}
  ox.putImageData(im,0,0);return o}
 /* ---- end page edges ---- */
+/* ---- crop and tilt for all photos ---- */
+function applyCrop(c,K){const W=c.width,H=c.height,x0=K.l/100*W,y0=K.t/100*H,w=Math.max(8,W*(1-(K.l+K.r)/100)),h=Math.max(8,H*(1-(K.t+K.b)/100));
+ const o=document.createElement('canvas');o.width=Math.round(w);o.height=Math.round(h);const x=o.getContext('2d');
+ x.fillStyle='#fff';x.fillRect(0,0,o.width,o.height);x.translate(-x0,-y0);x.translate(W/2,H/2);x.rotate(K.tilt*Math.PI/180);x.drawImage(c,-W/2,-H/2);c.width=0;return o}
+let cpb=null;
+const cpV=()=>({l:+$('c_l').value,r:+$('c_r').value,t:+$('c_t').value,b:+$('c_b').value,tilt:+$('c_tilt').value});
+function cpDraw(){if(!cpb)return;const c=cpb,cv=$('cpc'),x=cv.getContext('2d'),V=cpV();cv.width=c.width;cv.height=c.height;
+ x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.save();x.translate(c.width/2,c.height/2);x.rotate(V.tilt*Math.PI/180);x.drawImage(c,-c.width/2,-c.height/2);x.restore();
+ const X0=V.l/100*c.width,Y0=V.t/100*c.height,X1=c.width-V.r/100*c.width,Y1=c.height-V.b/100*c.height;
+ x.fillStyle='rgba(0,0,0,.55)';x.fillRect(0,0,c.width,Y0);x.fillRect(0,Y1,c.width,c.height-Y1);x.fillRect(0,Y0,X0,Y1-Y0);x.fillRect(X1,Y0,c.width-X1,Y1-Y0);
+ x.strokeStyle='#00e676';x.lineWidth=Math.max(2,c.width/300);x.strokeRect(X0,Y0,X1-X0,Y1-Y0);
+ x.strokeStyle='rgba(0,230,118,.4)';x.lineWidth=1;for(let i=1;i<8;i++){const gy=Y0+(Y1-Y0)*i/8;x.beginPath();x.moveTo(X0,gy);x.lineTo(X1,gy);x.stroke()}
+ for(const k of['tilt','l','r','t','b'])$('v_'+k).textContent=' '+V[k]+(k=='tilt'?'°':'%')}
+async function openCrop(){
+ if(!pages.length){alert('Add photos first.');return}
+ readO();const p=pages[Math.max(1,Math.min(pages.length,+$('cpn').value||1))-1];
+ $('cpt').textContent='Opening the photo…';$('cp').style.display='block';
+ try{cpb=await base(p,900,false);$('cpt').textContent=''}catch(e){$('cpt').textContent='Could not open that photo: '+e.message;return}
+ const C=CROP||{l:0,r:0,t:0,b:0,tilt:0};for(const k of['l','r','t','b','tilt'])$('c_'+k).value=C[k];cpDraw()}
+function cpZero(){for(const k of['l','r','t','b','tilt'])$('c_'+k).value=0;cpDraw()}
+function cpSum(){$('cps').textContent=CROP?'Crop set: left '+CROP.l+'%, right '+CROP.r+'%, top '+CROP.t+'%, bottom '+CROP.b+'%, tilt '+CROP.tilt+'°':'No crop set'}
+for(const k of['l','r','t','b','tilt'])$('c_'+k).oninput=cpDraw;
+$('cpb').onclick=openCrop;$('cpz').onclick=cpZero;
+$('cpr').onclick=()=>{CROP=null;cpSum()};
+$('cpd').onclick=()=>{const V=cpV();CROP=(V.l||V.r||V.t||V.b||V.tilt)?V:null;cpSum();$('cp').style.display='none';if(cpb){cpb.width=0;cpb=null}};
 /* ---- preview ---- */
 async function preview(p){readO();$('pvb').textContent='Working…';$('pv').style.display='block';
  try{const m=$('mode').value,ims=[],mk=src=>{const im=new Image();im.src=src;im.style.cssText='width:100%;margin:6px 0;border:1px solid var(--bd)';return im};
