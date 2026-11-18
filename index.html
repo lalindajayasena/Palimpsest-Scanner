@@ -35,7 +35,7 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 .sp span{position:absolute;bottom:0;left:0;right:0;text-align:center;font-size:11px;background:#000b;color:#fff}
 </style></head><body>
 <h1>Palimpsest Scanner</h1>
-<div id="ver" style="font-size:12px;opacity:.6;margin:-2px 0 6px">Version 10 · 18 Nov 2026</div>
+<div id="ver" style="font-size:12px;opacity:.6;margin:-2px 0 6px">Version 11 · 18 Nov 2026</div>
 <p class="s">Photos in, natural searchable PDF out. Free. No limits.</p>
 <p style="margin:0 0 10px"><button class="g" id="hbtn">❓ Help</button><button class="g" id="upd">🔄 Update app</button><button class="g" id="inst" style="display:none">⬇ Install app</button><a href="reader.html" style="color:var(--ac);font-size:16px">📖 Open the Reader (read or listen to your books)</a></p>
 <div id="tabs"><button id="tb1">📷 Pages</button><button class="g" id="tb2">⚙ Make PDF</button></div>
@@ -64,9 +64,11 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 </select>
 <label class="ck"><input type="checkbox" id="ac"> Auto-crop: try to find the page edges (experimental, check with 👁)</label>
 <label class="ck"><input type="checkbox" id="sh" checked> Remove shadows (turn off if a page has big pictures)</label>
-<select id="shs"><option value="1">Shadow removal: normal</option><option value="2">Shadow removal: strong (for leftover shadows)</option></select>
+<select id="shs"><option value="1">Shadow removal: normal</option><option value="2">Shadow removal: strong (cleans shadow edges)</option></select>
 <div style="margin:8px 0"><button class="g" id="cpb">✂ Set crop and tilt for all photos</button><button class="g" id="cpr">Reset</button> <span id="cps" style="font-size:13px;opacity:.7">No crop set</span></div>
 <label style="font-size:13px;opacity:.7">The crop is shown on photo number <input id="cpn" type="number" value="1" min="1" style="width:70px;display:inline-block"></label>
+<label style="font-size:14px">Picture quality</label>
+<select id="qual"><option value="1">Normal (smaller PDF, faster)</option><option value="2">High (sharper, bigger PDF, slower)</option></select>
 <label style="font-size:14px">Trim the edges by % (cuts fingers and dark borders; try 3)</label>
 <input id="trim" type="number" value="0" min="0" max="20">
 <label class="ck"><input type="checkbox" id="ocr" checked> Read the text (OCR) so the PDF is searchable</label>
@@ -121,7 +123,9 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 <details><summary>Settings explained</summary><ul>
 <li><b>Look</b>: Natural keeps paper colour. Clean is grey and white. Strong black and white is best for faded print. Original changes nothing.</li>
 <li><b>Set crop and tilt for all photos</b>: the most reliable way to remove the table and fingers at the edges. Choose a typical photo, drag the sliders until the green box fits the page, then Done. The same crop is used for every photo, so photograph all pages the same way.</li>
-<li><b>Shadow removal strong</b>: use it when shadows are still left. It can slightly grey very big headings.</li>
+<li><b>Shadow removal strong</b>: use it when the edges of shadows are still visible. It reads the light in finer detail and runs two times. Letters and pictures are not changed, only the uneven light.</li>
+<li><b>Do not remove shadows on this photo</b>: tick it for a page that is mostly a big picture, so the picture keeps its dark parts.</li>
+<li><b>Picture quality</b>: Normal keeps pages about 2000 pixels tall. High keeps about 3000 and saves with less compression. High makes bigger PDFs and is slower, and may be too heavy for a very old phone.</li>
 <li><b>Auto-crop (experimental)</b>: finds the page edges in the photo, cuts away the table, and straightens a tilted page. Tap <b>👁</b> to check the green outline. Tick <b>Skip auto-crop</b> on a photo where it goes wrong. It works best when the page is brighter than what is behind it. It does not flatten a curved page near the spine.</li>
 <li><b>Remove shadows</b>: evens out the light. Turn it off if the page has big pictures.</li>
 <li><b>Trim edges</b>: cuts a few percent from every side. Use 3 to remove fingers at the edge.</li>
@@ -169,12 +173,12 @@ Bottom <span id="v_b"></span><input id="c_b" type="range" min="0" max="45" step=
 <script>
 const $=id=>document.getElementById(id);
 let pages=[],uid=0,stop=false,CROP=null,O={shadow:true,trim:0};
-const readO=()=>{O={ac:$('ac').checked,shadow:$('sh').checked,shs:+$('shs').value,crop:CROP,trim:Math.min(20,Math.max(0,+$('trim').value||0))/100}};
+const readO=()=>{O={q:+$('qual').value,ac:$('ac').checked,shadow:$('sh').checked,shs:+$('shs').value,crop:CROP,trim:Math.min(20,Math.max(0,+$('trim').value||0))/100}};
 /* ---- photos are copied into the app at once, and kept for next time ---- */
 const PDB=()=>new Promise((ok,no)=>{const r=indexedDB.open('palimpsest-photos',1);r.onupgradeneeded=()=>{r.result.createObjectStore('photos',{keyPath:'id'});r.result.createObjectStore('meta',{keyPath:'k'})};r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
 const pdo=async(st,mode,fn)=>{const d=await PDB();return new Promise((ok,no)=>{const t=d.transaction(st,mode),q=fn(t.objectStore(st));t.oncomplete=()=>{ok(q&&q.result);d.close()};t.onerror=()=>no(t.error);t.onabort=()=>no(t.error)})};
 let mt=null;
-function saveMeta(){clearTimeout(mt);mt=setTimeout(()=>pdo('meta','readwrite',st=>st.put({k:'list',v:pages.map(p=>({id:p.id,rot:p.rot,split:p.split,nocrop:p.nocrop,strokes:p.strokes}))})).catch(()=>{}),500)}
+function saveMeta(){clearTimeout(mt);mt=setTimeout(()=>pdo('meta','readwrite',st=>st.put({k:'list',v:pages.map(p=>({id:p.id,rot:p.rot,split:p.split,nocrop:p.nocrop,noshadow:p.noshadow,strokes:p.strokes}))})).catch(()=>{}),500)}
 async function readFile(f){let err;for(let t=0;t<3;t++){try{return await f.arrayBuffer()}catch(e){err=e;await new Promise(r=>setTimeout(r,1200))}}throw err}
 const HINT=' This usually means the photo is only in the cloud (Google Photos) or Chrome is not allowed to read it. Try the 📁 Add from Files button, or allow Photos and videos for Chrome in the phone Settings.';
 const addFiles=async e=>{
@@ -214,12 +218,14 @@ function tool(){const p=pages[cur],L=$('list');
  <div class="row"><button class="g" data-a="r">⟳ Turn</button><button class="g" data-a="v">👁 Finished look</button><button class="g" data-a="e">🖌 Paint${p.strokes.length?' ✓':''}</button><button class="g" data-a="x">✕ Remove</button></div>
  <label style="font-size:15px;display:block;margin:6px 0"><input type="checkbox" data-a="s" ${p.split?'checked':''}> This photo shows 2 pages (split it)</label>
  <label style="font-size:15px;display:block;margin:6px 0"><input type="checkbox" data-a="n" ${p.nocrop?'checked':''}> Skip auto-crop for this photo</label>
+ <label style="font-size:15px;display:block;margin:6px 0"><input type="checkbox" data-a="z" ${p.noshadow?'checked':''}> Do not remove shadows on this photo (pictures)</label>
  <div class="row" style="margin:6px 0">Move this photo to place <input id="mvn" type="number" min="1" max="${pages.length}" value="${cur+1}" style="width:80px"> <button class="g" data-a="M">Go</button></div>
  ${p.bad?'<div style="color:#c0392b;font-size:13px">⚠ '+esc(p.why||'This photo cannot be opened.')+' Tap Remove to delete it.</div>':''}`}
 $('list').onclick=e=>{const a=e.target.dataset.a;if(!a)return;const i=cur,p=pages[i];if(!p)return;
  if(a=='r'){p.rot=(p.rot+90)%360;p.strokes=[];soft();return}
  if(a=='s'){p.split=e.target.checked;soft();return}
  if(a=='n'){p.nocrop=e.target.checked;soft();return}
+ if(a=='z'){p.noshadow=e.target.checked;soft();return}
  if(a=='e'){openEd(p);return}
  if(a=='v'){preview(p);return}
  if(a=='x'){pages.splice(i,1);pdo('photos','readwrite',st=>st.delete(p.id)).catch(()=>{})}
@@ -256,24 +262,30 @@ function showTab(n){$('tab1').style.display=n==1?'block':'none';$('tab2').style.
  $('strip').style.display=(n==1&&pages.length)?'flex':'none';$('tb1').className=n==1?'':'g';$('tb2').className=n==2?'':'g';window.scrollTo(0,0);if(n==1){stripScroll();showPrev()}}
 $('tb1').onclick=$('bk1').onclick=()=>showTab(1);$('tb2').onclick=$('nx').onclick=()=>showTab(2);
 /* ---- shadow removal: estimate the paper brightness, then divide it out ---- */
-function flatten(c){
- const W=c.width,H=c.height,dv=O.shs==2?64:40,gw=Math.max(8,Math.round(W/dv)),gh=Math.max(8,Math.round(H/dv));
+function flatten(c,strong){
+ const W=c.width,H=c.height,cell=strong?16:24,r=strong?3:2,gw=Math.max(8,Math.round(W/cell)),gh=Math.max(8,Math.round(H/cell));
  const s=document.createElement('canvas');s.width=gw;s.height=gh;
  const sx=s.getContext('2d');sx.imageSmoothingQuality='high';sx.drawImage(c,0,0,gw,gh);
  const id=sx.getImageData(0,0,gw,gh);let d=id.data;
- const pass=(src,r,mx)=>{const o=new Uint8ClampedArray(src.length);
-  for(let y=0;y<gh;y++)for(let x=0;x<gw;x++)for(let k=0;k<3;k++){let v=mx?0:0,n=0;
-   for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const yy=y+dy,xx=x+dx;if(yy<0||xx<0||yy>=gh||xx>=gw)continue;
-    const t=src[(yy*gw+xx)*4+k];if(mx){if(t>v)v=t}else{v+=t;n++}}
-   o[(y*gw+x)*4+k]=mx?v:v/n}
+ /* mode 1 = widest value nearby, 2 = narrowest value nearby, 0 = average */
+ const pass=(src,rr,mode)=>{const o=new Uint8ClampedArray(src.length);
+  for(let y=0;y<gh;y++)for(let x=0;x<gw;x++)for(let k=0;k<3;k++){let v=mode==2?255:0,sum=0,n=0;
+   for(let dy=-rr;dy<=rr;dy++){const yy=y+dy;if(yy<0||yy>=gh)continue;
+    for(let dx=-rr;dx<=rr;dx++){const xx=x+dx;if(xx<0||xx>=gw)continue;const t=src[(yy*gw+xx)*4+k];
+     if(mode==1){if(t>v)v=t}else if(mode==2){if(t<v)v=t}else{sum+=t;n++}}}
+   o[(y*gw+x)*4+k]=mode==0?sum/n:v}
   for(let i=3;i<o.length;i+=4)o[i]=255;return o};
- d=pass(pass(d,O.shs==2?1:2,true),2,false);id.data.set(d);sx.putImageData(id,0,0);
+ /* closing: removes ink, keeps the edges of shadows exactly where they are */
+ d=pass(pass(pass(d,r,1),r,2),1,0);
+ const ref=[255,255,255];
+ for(let k=0;k<3;k++){const h=new Uint32Array(256);for(let i=k;i<d.length;i+=4)h[d[i]]++;let acc=0;const n=gw*gh;for(let v=0;v<256;v++){acc+=h[v];if(acc>=n*.9){ref[k]=v;break}}}
+ id.data.set(d);sx.putImageData(id,0,0);
  const b=document.createElement('canvas');b.width=W;b.height=H;
  const bx=b.getContext('2d');bx.imageSmoothingQuality='high';bx.drawImage(s,0,0,W,H);
  const x=c.getContext('2d'),im=x.getImageData(0,0,W,H),p=im.data,bg=bx.getImageData(0,0,W,H).data;
- for(let i=0;i<p.length;i+=4)for(let k=0;k<3;k++){const q=Math.max(40,bg[i+k]);p[i+k]=Math.min(255,p[i+k]*255/q)}
- x.putImageData(im,0,0);b.width=0;
-}
+ for(let i=0;i<p.length;i+=4)for(let k=0;k<3;k++){const q=Math.max(40,bg[i+k],ref[k]/2.5);p[i+k]=Math.min(255,p[i+k]*255/q)}
+ x.putImageData(im,0,0);b.width=0;s.width=0}
+const shade=(c,strong)=>{flatten(c,strong);if(strong)flatten(c,true)};
 function paint(x,W,H,st){x.strokeStyle=x.fillStyle='#fff';x.lineCap=x.lineJoin='round';
  for(const s of st){x.lineWidth=s.r*W;x.beginPath();x.moveTo(s.pts[0][0]*W,s.pts[0][1]*H);
   for(const q of s.pts)x.lineTo(q[0]*W+.01,q[1]*H);x.stroke()}}
@@ -310,7 +322,7 @@ async function base(p,max,flat=true){
  const W=Math.round(W0*k0),H=Math.round(H0*k0),c=document.createElement('canvas');c.width=W;c.height=H;
  const x=c.getContext('2d');x.translate(W/2,H/2);x.rotate(p.rot*Math.PI/180);
  x.drawImage(b,-iw*k0/2,-ih*k0/2,iw*k0,ih*k0);if(b.close)b.close();else{b.src='';if(b._u)URL.revokeObjectURL(b._u)}
- if(flat&&O.shadow)flatten(c);return c;
+ if(flat&&O.shadow)shade(c,O.shs==2);return c;
 }
 /* ---- looks ---- */
 function filt(o,m){
@@ -333,15 +345,15 @@ function filt(o,m){
  x.putImageData(im,0,0);
 }
 async function render(p,part,m){
- let c=await base(p,2600,false);
+ let c=await base(p,O.q==2?3600:2600,false);
  if(p.strokes.length)paint(c.getContext('2d'),c.width,c.height,p.strokes);
  if(O.ac&&!p.nocrop){const q=detectQuad(c);if(q){const w2=warp(c,q,2400);c.width=0;c=w2}}
  if(O.crop)c=applyCrop(c,O.crop);
- if(O.shadow)flatten(c);
+ if(O.shadow&&!p.noshadow)shade(c,O.shs==2);
  const W=c.width,H=c.height;
  const t=O.trim,rx=W*t,ry=H*t,rw=W-2*rx,rh=H-2*ry;
  let sx=rx,w=rw;if(part==1)w=rw/2;if(part==2){sx=rx+rw/2;w=rw/2}
- const k=Math.min(1,2000/Math.max(w,rh)),o=document.createElement('canvas');
+ const k=Math.min(1,(O.q==2?3000:2000)/Math.max(w,rh)),o=document.createElement('canvas');
  o.width=Math.round(w*k);o.height=Math.round(rh*k);
  o.getContext('2d').drawImage(c,sx,ry,w,rh,0,0,o.width,o.height);c.width=0;
  filt(o,m);return o;
@@ -583,12 +595,13 @@ $('go').onclick=async()=>{
     let o;try{o=await render(p,pt,m)}catch(er){skipped.add(er.message);$('st').textContent='Skipped a photo that cannot be opened. Continuing…';await new Promise(r=>setTimeout(r,0));continue}
     const w=595,h=w*o.height/o.width,or=w>h?'l':'p';
     if(!pdf){pdf=new jsPDF({unit:'pt',format:[w,h],orientation:or,compress:true});addFonts(pdf,act)}else pdf.addPage([w,h],or);
-    pdf.addImage(o.toDataURL('image/jpeg',.8),'JPEG',0,0,w,h);
+    pdf.addImage(o.toDataURL('image/jpeg',O.q==2?.92:.8),'JPEG',0,0,w,h);
     if(ocr){
-     const{data}=await worker.recognize(o),sc=w/o.width,pos=done+1;
+     let oc=o;if(o.width>2200){oc=document.createElement('canvas');oc.width=2200;oc.height=Math.round(o.height*2200/o.width);oc.getContext('2d').drawImage(o,0,0,oc.width,oc.height)}
+     const{data}=await worker.recognize(oc),sc=w/oc.width,pos=done+1;const oh=oc.height;if(oc!==o)oc.width=0;
      txt+=data.text+'\n\n----- page '+pos+' -----\n\n';
-     nums.push({pos,n:pageNum(data.words||[],o.height)});texts.push({pos,text:data.text});
-     if(bm){const hd=heading(data,o.height);if(hd&&(!heads.length||heads[heads.length-1].title!==hd))heads.push({pos,title:hd});
+     nums.push({pos,n:pageNum(data.words||[],oh)});texts.push({pos,text:data.text});
+     if(bm){const hd=heading(data,oh);if(hd&&(!heads.length||heads[heads.length-1].title!==hd))heads.push({pos,title:hd});
       const tl=tocFrom(data.text);if(tl.length)tocPages.push({pos,items:tl})}
      for(const wd of(data.words||[]))putWord(pdf,wd,sc,act);
     }
@@ -629,7 +642,7 @@ $('go').onclick=async()=>{
 draw();
 (async()=>{try{const m=await pdo('meta','readonly',st=>st.get('list')),ids=(m&&m.v)||[];if(!ids.length)return;
  const all=await pdo('photos','readonly',st=>st.getAll()),by=new Map(all.map(r=>[r.id,r.file]));
- for(const it of ids){const f=by.get(it.id);if(!f)continue;pages.push({id:it.id,f,name:f.name,rot:it.rot||0,split:!!it.split,nocrop:!!it.nocrop,strokes:it.strokes||[],url:URL.createObjectURL(f),thumb:''})}
+ for(const it of ids){const f=by.get(it.id);if(!f)continue;pages.push({id:it.id,f,name:f.name,rot:it.rot||0,split:!!it.split,nocrop:!!it.nocrop,noshadow:!!it.noshadow,strokes:it.strokes||[],url:URL.createObjectURL(f),thumb:''})}
  if(pages.length){draw();thumbs(pages);$('st').textContent='Your '+pages.length+' photo(s) from last time are still here.'}}catch(e){}})();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script></body></html>
