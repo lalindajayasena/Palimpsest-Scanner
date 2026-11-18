@@ -23,11 +23,24 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 #st,#cst{margin:8px 0;font-weight:600}#rep{white-space:pre-wrap;font-size:14px;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px;display:none}
 #ed,#pv,#hp,#cp{display:none;position:fixed;inset:0;background:var(--bg);z-index:9;padding:12px;overflow:auto}
 #hp details{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:8px 12px;margin:8px 0}#hp summary{font-weight:700;font-size:17px;padding:4px 0}#hp li,#hp p{line-height:1.5;margin:6px 0}
+#tabs{display:flex;gap:6px;margin:6px 0}#tabs button{flex:1}
+#tab1{padding-bottom:120px}
+#pvw{position:relative;background:#0001;border-radius:12px;height:46vh;margin:6px 0;touch-action:pan-y;overflow:hidden}
+#pvc{width:100%;height:100%;object-fit:contain;display:block}
+#pvm{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:16px;font-size:14px;opacity:.75;pointer-events:none}
+#strip{display:none;position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--bd);gap:6px;overflow-x:auto;padding:8px;z-index:6;-webkit-overflow-scrolling:touch}
+.sp{flex:none;width:62px;height:82px;position:relative;border:3px solid transparent;border-radius:8px;overflow:hidden;background:#0003}
+.sp.on{border-color:var(--ac)}.sp.bad{border-color:#c0392b}.sp.bad::after{content:'⚠';position:absolute;top:2px;right:4px;color:#fff;background:#c0392b;border-radius:6px;font-size:11px;padding:0 3px}
+.sp img{width:100%;height:100%;object-fit:cover;display:block}
+.sp span{position:absolute;bottom:0;left:0;right:0;text-align:center;font-size:11px;background:#000b;color:#fff}
 </style></head><body>
 <h1>Palimpsest Scanner</h1>
-<div id="ver" style="font-size:12px;opacity:.6;margin:-2px 0 6px">Version 9 · 17 Nov 2026</div>
+<div id="ver" style="font-size:12px;opacity:.6;margin:-2px 0 6px">Version 10 · 18 Nov 2026</div>
 <p class="s">Photos in, natural searchable PDF out. Free. No limits.</p>
 <p style="margin:0 0 10px"><button class="g" id="hbtn">❓ Help</button><button class="g" id="upd">🔄 Update app</button><button class="g" id="inst" style="display:none">⬇ Install app</button><a href="reader.html" style="color:var(--ac);font-size:16px">📖 Open the Reader (read or listen to your books)</a></p>
+<div id="tabs"><button id="tb1">📷 Pages</button><button class="g" id="tb2">⚙ Make PDF</button></div>
+<div id="st"></div>
+<div id="tab1">
 <input id="add" type="file" accept="image/*" multiple hidden>
 <input id="cam" type="file" accept="image/*" capture="environment" hidden>
 <input id="add2" type="file" accept="image/jpeg,image/png,image/webp,application/octet-stream" multiple hidden>
@@ -35,8 +48,13 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 <button class="g" id="spl">Split all (2 pages per photo)</button>
 <button class="g" id="clr">Clear all</button>
 <div id="count" style="margin:6px 0;opacity:.7"></div>
+<div id="pvw"><canvas id="pvc"></canvas><div id="pvm">Add photos to see them here.</div></div>
 <div id="list"></div>
+<button id="nx" style="width:100%;margin-top:10px">⚙ Next: settings and Make PDF →</button>
+</div>
 
+<div id="tab2" style="display:none">
+<button class="g" id="bk1">← Back to the pages</button>
 <label style="font-size:14px">Look of the pages</label>
 <select id="mode">
 <option value="natural">Natural (paper colour, no shadows)</option>
@@ -72,7 +90,6 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 <input id="name" type="text" value="My book" placeholder="PDF name">
 <button id="go" style="width:100%;font-size:18px">Make PDF</button>
 <button id="stop" class="g" style="width:100%;display:none">Stop and save what is done</button>
-<div id="st"></div>
 <div id="rep"></div>
 
 <h2>Combine PDFs</h2>
@@ -81,6 +98,8 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 <label class="b" for="pdfs">Choose PDFs to combine</label>
 <div id="cst"></div>
 
+</div>
+<div id="strip"></div>
 <div id="pv"><button id="pvx">✕ Close</button> <b>How this page will look</b><div id="pvb"></div></div>
 <div id="hp"><button id="hpx">✕ Close help</button>
 <h2 style="margin-top:10px">Help</h2>
@@ -88,11 +107,13 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 <details open><summary>Quick start</summary><ol>
 <li>Tap <b>+ Add photos</b> and choose your book photos (or <b>📷 Take photo</b>).</li>
 <li>For two-page photos, tap <b>Split all</b>.</li>
-<li>Tap <b>👁</b> on one photo to see how the page will look.</li>
+<li>Tap a small photo at the bottom to see it big at the top. Swipe the big photo left or right to go to the next one.</li>
+<li>Fix the order with <b>◀ Earlier</b> and <b>Later ▶</b>, or type a place number and tap <b>Go</b>.</li>
+<li>Tap <b>👁 Finished look</b> to see how the page will look in the PDF.</li>
 <li>Choose the language, then tap <b>Make PDF</b>.</li>
 <li>Keep the screen open. Your files go to the <b>Downloads</b> folder.</li></ol></details>
 <details><summary>Buttons on each photo</summary><ul>
-<li><b>⟳</b> turns the photo.</li><li><b>↑ ↓</b> change the page order.</li>
+<li><b>⟳ Turn</b> turns the photo.</li><li><b>◀ Earlier / Later ▶</b> move the photo in the order. <b>Go</b> moves it to a place number.</li>
 <li><b>👁</b> shows the finished page.</li>
 <li><b>🖌</b> lets you paint over fingers or marks.</li>
 <li><b>✕</b> removes the photo from the list (not from your phone).</li>
@@ -175,30 +196,65 @@ async function thumbs(a){for(const p of a){try{
   c.width=Math.max(1,w*k|0);c.height=Math.max(1,h*k|0);c.getContext('2d').drawImage(im,0,0,c.width,c.height);if(im.close)im.close();else{im.src='';if(im._u)URL.revokeObjectURL(im._u)}}
  p.thumb=c.toDataURL('image/jpeg',.6);c.width=0;
  const el=document.getElementById('t'+p.id);if(el)el.src=p.thumb;
-}catch(e){p.bad=true;p.why=e.message;const w=document.getElementById('w'+p.id);if(w){w.style.display='block';w.textContent='⚠ '+e.message+' Tap ✕ to remove it.'}}
+}catch(e){p.bad=true;p.why=e.message;const el=document.getElementById('t'+p.id);if(el)el.parentNode.classList.add('bad');if(pages[cur]===p){tool();showPrev()}}
  await new Promise(r=>setTimeout(r,0))}}
 $('spl').onclick=()=>{const v=!pages.every(p=>p.split);pages.forEach(p=>p.split=v);draw()};
 $('clr').onclick=()=>{if(pages.length&&!confirm('Remove all photos from the app?'))return;pages=[];pdo('photos','readwrite',st=>st.clear()).catch(()=>{});draw()};
+let cur=0,tx=null,pvTok=0;const pvCache=new Map(),BLANK='data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
 function draw(){saveMeta();
  $('count').textContent=pages.length+' photo(s)';
- $('list').innerHTML=pages.map((p,i)=>`<div class="card"><div class="th"><img id="t${p.id}" src="${p.thumb}" style="transform:rotate(${p.rot}deg)"></div><div><div class="row"><b>${i+1}</b>
- <button class="g" data-a="r" data-i="${i}">⟳</button><button class="g" data-a="u" data-i="${i}">↑</button><button class="g" data-a="d" data-i="${i}">↓</button><button class="g" data-a="v" data-i="${i}">👁</button><button class="g" data-a="e" data-i="${i}">🖌${p.strokes.length?'✓':''}</button><button class="g" data-a="x" data-i="${i}">✕</button></div>
- <div id="w${p.id}" style="display:${p.bad?'block':'none'};color:#c0392b;font-size:13px">⚠ ${esc(p.why||'This photo cannot be opened.')} Tap ✕ to remove it.</div>
- <label style="font-size:14px"><input type="checkbox" data-a="s" data-i="${i}" ${p.split?'checked':''}> Split into 2 pages</label>
- <label style="font-size:14px;display:block"><input type="checkbox" data-a="n" data-i="${i}" ${p.nocrop?'checked':''}> Skip auto-crop</label></div></div>`).join('');
-}
-$('list').onclick=e=>{
- const a=e.target.dataset.a,i=+e.target.dataset.i;if(!a)return;
- if(a=='r'){pages[i].rot=(pages[i].rot+90)%360;pages[i].strokes=[]}
- if(a=='s'){pages[i].split=e.target.checked}
- if(a=='n'){pages[i].nocrop=e.target.checked}
- if(a=='x'){const id=pages[i].id;pages.splice(i,1);pdo('photos','readwrite',st=>st.delete(id)).catch(()=>{})}
- if(a=='u'&&i>0)[pages[i-1],pages[i]]=[pages[i],pages[i-1]];
- if(a=='d'&&i<pages.length-1)[pages[i+1],pages[i]]=[pages[i],pages[i+1]];
- if(a=='e'){openEd(pages[i]);return}
- if(a=='v'){preview(pages[i]);return}
- draw();
-};
+ if(cur>=pages.length)cur=pages.length-1;if(cur<0)cur=0;
+ $('strip').innerHTML=pages.map((p,i)=>`<div class="sp${i==cur?' on':''}${p.bad?' bad':''}" data-s="${i}"><img id="t${p.id}" src="${p.thumb||BLANK}"><span>${i+1}</span></div>`).join('');
+ $('strip').style.display=($('tab1').style.display!='none'&&pages.length)?'flex':'none';
+ tool();showPrev();stripScroll()}
+function soft(){saveMeta();tool();showPrev()}
+function tool(){const p=pages[cur],L=$('list');
+ if(!p){L.innerHTML='';return}
+ L.innerHTML=`<div class="row" style="justify-content:space-between"><button class="g" data-a="L">◀ Earlier</button><b>Photo ${cur+1} of ${pages.length}</b><button class="g" data-a="R">Later ▶</button></div>
+ <div class="row"><button class="g" data-a="r">⟳ Turn</button><button class="g" data-a="v">👁 Finished look</button><button class="g" data-a="e">🖌 Paint${p.strokes.length?' ✓':''}</button><button class="g" data-a="x">✕ Remove</button></div>
+ <label style="font-size:15px;display:block;margin:6px 0"><input type="checkbox" data-a="s" ${p.split?'checked':''}> This photo shows 2 pages (split it)</label>
+ <label style="font-size:15px;display:block;margin:6px 0"><input type="checkbox" data-a="n" ${p.nocrop?'checked':''}> Skip auto-crop for this photo</label>
+ <div class="row" style="margin:6px 0">Move this photo to place <input id="mvn" type="number" min="1" max="${pages.length}" value="${cur+1}" style="width:80px"> <button class="g" data-a="M">Go</button></div>
+ ${p.bad?'<div style="color:#c0392b;font-size:13px">⚠ '+esc(p.why||'This photo cannot be opened.')+' Tap Remove to delete it.</div>':''}`}
+$('list').onclick=e=>{const a=e.target.dataset.a;if(!a)return;const i=cur,p=pages[i];if(!p)return;
+ if(a=='r'){p.rot=(p.rot+90)%360;p.strokes=[];soft();return}
+ if(a=='s'){p.split=e.target.checked;soft();return}
+ if(a=='n'){p.nocrop=e.target.checked;soft();return}
+ if(a=='e'){openEd(p);return}
+ if(a=='v'){preview(p);return}
+ if(a=='x'){pages.splice(i,1);pdo('photos','readwrite',st=>st.delete(p.id)).catch(()=>{})}
+ if(a=='L'&&i>0){[pages[i-1],pages[i]]=[pages[i],pages[i-1]];cur=i-1}
+ if(a=='R'&&i<pages.length-1){[pages[i+1],pages[i]]=[pages[i],pages[i+1]];cur=i+1}
+ if(a=='M'){const n=Math.max(1,Math.min(pages.length,+$('mvn').value||1));pages.splice(i,1);pages.splice(n-1,0,p);cur=n-1}
+ draw()};
+function stripScroll(){const n=$('strip').children[cur];if(n)$('strip').scrollLeft=n.offsetLeft-$('strip').clientWidth/2+n.offsetWidth/2}
+function pick(i){if(i<0||i>=pages.length)return;cur=i;const o=$('strip').querySelector('.on');if(o)o.classList.remove('on');const n=$('strip').children[i];if(n)n.classList.add('on');tool();showPrev();stripScroll()}
+$('strip').onclick=e=>{const el=e.target.closest('[data-s]');if(el)pick(+el.dataset.s)};
+$('pvw').addEventListener('touchstart',e=>{tx=e.touches[0].clientX},{passive:true});
+$('pvw').addEventListener('touchend',e=>{if(tx==null)return;const dx=e.changedTouches[0].clientX-tx;tx=null;if(Math.abs(dx)>60)pick(cur+(dx<0?1:-1))});
+async function smallCanvas(p){
+ if(pvCache.has(p.id))return pvCache.get(p.id);
+ const c=document.createElement('canvas');
+ try{const b=await createImageBitmap(p.f,{resizeWidth:1000,resizeQuality:'medium'});c.width=b.width;c.height=b.height;c.getContext('2d').drawImage(b,0,0);b.close()}
+ catch(e){const im=await getSource(p),w=im.naturalWidth||im.width,h=im.naturalHeight||im.height,k=Math.min(1,1000/Math.max(w,h));
+  c.width=Math.max(1,w*k|0);c.height=Math.max(1,h*k|0);c.getContext('2d').drawImage(im,0,0,c.width,c.height);if(im.close)im.close();else{im.src='';if(im._u)URL.revokeObjectURL(im._u)}}
+ pvCache.set(p.id,c);if(pvCache.size>8){const k=pvCache.keys().next().value;pvCache.get(k).width=0;pvCache.delete(k)}
+ return c}
+async function showPrev(){
+ const tok=++pvTok,cv=$('pvc'),p=pages[cur];
+ if(!p){cv.width=1;cv.height=1;$('pvm').textContent='Add photos to see them here.';return}
+ if(p.bad){cv.width=1;cv.height=1;$('pvm').textContent='⚠ This photo cannot be opened.';return}
+ if(!pvCache.has(p.id))$('pvm').textContent='Loading…';
+ try{const c=await smallCanvas(p);if(tok!==pvTok)return;
+  const sw=p.rot%180,W=sw?c.height:c.width,H=sw?c.width:c.height;cv.width=W;cv.height=H;
+  const x=cv.getContext('2d');x.save();x.translate(W/2,H/2);x.rotate(p.rot*Math.PI/180);x.drawImage(c,-c.width/2,-c.height/2);x.restore();
+  if(p.split){x.strokeStyle='#ff5252';x.lineWidth=Math.max(2,W/250);x.setLineDash([14,9]);x.beginPath();x.moveTo(W/2,0);x.lineTo(W/2,H);x.stroke()}
+  $('pvm').textContent='';
+  const nx=pages[cur+1];if(nx&&!nx.bad&&!pvCache.has(nx.id))setTimeout(()=>smallCanvas(nx).catch(()=>{}),50)
+ }catch(e){if(tok===pvTok){cv.width=1;cv.height=1;$('pvm').textContent='⚠ '+e.message}}}
+function showTab(n){$('tab1').style.display=n==1?'block':'none';$('tab2').style.display=n==2?'block':'none';
+ $('strip').style.display=(n==1&&pages.length)?'flex':'none';$('tb1').className=n==1?'':'g';$('tb2').className=n==2?'':'g';window.scrollTo(0,0);if(n==1){stripScroll();showPrev()}}
+$('tb1').onclick=$('bk1').onclick=()=>showTab(1);$('tb2').onclick=$('nx').onclick=()=>showTab(2);
 /* ---- shadow removal: estimate the paper brightness, then divide it out ---- */
 function flatten(c){
  const W=c.width,H=c.height,dv=O.shs==2?64:40,gw=Math.max(8,Math.round(W/dv)),gh=Math.max(8,Math.round(H/dv));
@@ -392,7 +448,7 @@ async function openCrop(){
 function cpZero(){for(const k of['l','r','t','b','tilt'])$('c_'+k).value=0;cpDraw()}
 function cpSum(){$('cps').textContent=CROP?'Crop set: left '+CROP.l+'%, right '+CROP.r+'%, top '+CROP.t+'%, bottom '+CROP.b+'%, tilt '+CROP.tilt+'°':'No crop set'}
 for(const k of['l','r','t','b','tilt'])$('c_'+k).oninput=cpDraw;
-$('cpb').onclick=openCrop;$('cpz').onclick=cpZero;
+$('cpb').onclick=()=>{$('cpn').value=cur+1;openCrop()};$('cpz').onclick=cpZero;
 $('cpr').onclick=()=>{CROP=null;cpSum()};
 $('cpd').onclick=()=>{const V=cpV();CROP=(V.l||V.r||V.t||V.b||V.tilt)?V:null;cpSum();$('cp').style.display='none';if(cpb){cpb.width=0;cpb=null}};
 /* ---- preview ---- */
