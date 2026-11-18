@@ -35,7 +35,7 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 .sp span{position:absolute;bottom:0;left:0;right:0;text-align:center;font-size:11px;background:#000b;color:#fff}
 </style></head><body>
 <h1>Palimpsest Scanner</h1>
-<div id="ver" style="font-size:12px;opacity:.6;margin:-2px 0 6px">Version 11 · 18 Nov 2026</div>
+<div id="ver" style="font-size:12px;opacity:.6;margin:-2px 0 6px">Version 12 · 18 Nov 2026</div>
 <p class="s">Photos in, natural searchable PDF out. Free. No limits.</p>
 <p style="margin:0 0 10px"><button class="g" id="hbtn">❓ Help</button><button class="g" id="upd">🔄 Update app</button><button class="g" id="inst" style="display:none">⬇ Install app</button><a href="reader.html" style="color:var(--ac);font-size:16px">📖 Open the Reader (read or listen to your books)</a></p>
 <div id="tabs"><button id="tb1">📷 Pages</button><button class="g" id="tb2">⚙ Make PDF</button></div>
@@ -61,6 +61,7 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 <option value="clean">Clean (grey, white paper)</option>
 <option value="bw">Strong black &amp; white (best for text)</option>
 <option value="orig">Original colour</option>
+<option value="raw">Original photo, untouched (full camera quality)</option>
 </select>
 <label class="ck"><input type="checkbox" id="ac"> Auto-crop: try to find the page edges (experimental, check with 👁)</label>
 <label class="ck"><input type="checkbox" id="sh" checked> Remove shadows (turn off if a page has big pictures)</label>
@@ -68,7 +69,7 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 <div style="margin:8px 0"><button class="g" id="cpb">✂ Set crop and tilt for all photos</button><button class="g" id="cpr">Reset</button> <span id="cps" style="font-size:13px;opacity:.7">No crop set</span></div>
 <label style="font-size:13px;opacity:.7">The crop is shown on photo number <input id="cpn" type="number" value="1" min="1" style="width:70px;display:inline-block"></label>
 <label style="font-size:14px">Picture quality</label>
-<select id="qual"><option value="1">Normal (smaller PDF, faster)</option><option value="2">High (sharper, bigger PDF, slower)</option></select>
+<select id="qual"><option value="1">Normal (smaller PDF, faster)</option><option value="2">High (sharper, bigger PDF, slower)</option><option value="3">Maximum (as sharp as the phone can manage, slow and heavy)</option></select>
 <label style="font-size:14px">Trim the edges by % (cuts fingers and dark borders; try 3)</label>
 <input id="trim" type="number" value="0" min="0" max="20">
 <label class="ck"><input type="checkbox" id="ocr" checked> Read the text (OCR) so the PDF is searchable</label>
@@ -125,6 +126,7 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 <li><b>Set crop and tilt for all photos</b>: the most reliable way to remove the table and fingers at the edges. Choose a typical photo, drag the sliders until the green box fits the page, then Done. The same crop is used for every photo, so photograph all pages the same way.</li>
 <li><b>Shadow removal strong</b>: use it when the edges of shadows are still visible. It reads the light in finer detail and runs two times. Letters and pictures are not changed, only the uneven light.</li>
 <li><b>Do not remove shadows on this photo</b>: tick it for a page that is mostly a big picture, so the picture keeps its dark parts.</li>
+<li><b>Original photo, untouched</b>: pick this look to put your camera photo into the PDF exactly as it is, with the full camera resolution and no recompression. The page is not cleaned, cropped, split or changed in any way. The text reading still works. Files are very large, so each part is saved on its own. If a photo is split, cropped or painted, that photo is made at the highest quality the phone can manage instead.</li>
 <li><b>Picture quality</b>: Normal keeps pages about 2000 pixels tall. High keeps about 3000 and saves with less compression. High makes bigger PDFs and is slower, and may be too heavy for a very old phone.</li>
 <li><b>Auto-crop (experimental)</b>: finds the page edges in the photo, cuts away the table, and straightens a tilted page. Tap <b>👁</b> to check the green outline. Tick <b>Skip auto-crop</b> on a photo where it goes wrong. It works best when the page is brighter than what is behind it. It does not flatten a curved page near the spine.</li>
 <li><b>Remove shadows</b>: evens out the light. Turn it off if the page has big pictures.</li>
@@ -217,8 +219,11 @@ function tool(){const p=pages[cur],L=$('list');
  L.innerHTML=`<div class="row" style="justify-content:space-between"><button class="g" data-a="L">◀ Earlier</button><b>Photo ${cur+1} of ${pages.length}</b><button class="g" data-a="R">Later ▶</button></div>
  <div class="row"><button class="g" data-a="r">⟳ Turn</button><button class="g" data-a="v">👁 Finished look</button><button class="g" data-a="e">🖌 Paint${p.strokes.length?' ✓':''}</button><button class="g" data-a="x">✕ Remove</button></div>
  <label style="font-size:15px;display:block;margin:6px 0"><input type="checkbox" data-a="s" ${p.split?'checked':''}> This photo shows 2 pages (split it)</label>
+ <button class="g" data-a="AS" style="margin:0 0 6px">⇉ Use this setting for all photos</button>
  <label style="font-size:15px;display:block;margin:6px 0"><input type="checkbox" data-a="n" ${p.nocrop?'checked':''}> Skip auto-crop for this photo</label>
+ <button class="g" data-a="AN" style="margin:0 0 6px">⇉ Use this setting for all photos</button>
  <label style="font-size:15px;display:block;margin:6px 0"><input type="checkbox" data-a="z" ${p.noshadow?'checked':''}> Do not remove shadows on this photo (pictures)</label>
+ <button class="g" data-a="AZ" style="margin:0 0 6px">⇉ Use this setting for all photos</button>
  <div class="row" style="margin:6px 0">Move this photo to place <input id="mvn" type="number" min="1" max="${pages.length}" value="${cur+1}" style="width:80px"> <button class="g" data-a="M">Go</button></div>
  ${p.bad?'<div style="color:#c0392b;font-size:13px">⚠ '+esc(p.why||'This photo cannot be opened.')+' Tap Remove to delete it.</div>':''}`}
 $('list').onclick=e=>{const a=e.target.dataset.a;if(!a)return;const i=cur,p=pages[i];if(!p)return;
@@ -226,6 +231,9 @@ $('list').onclick=e=>{const a=e.target.dataset.a;if(!a)return;const i=cur,p=page
  if(a=='s'){p.split=e.target.checked;soft();return}
  if(a=='n'){p.nocrop=e.target.checked;soft();return}
  if(a=='z'){p.noshadow=e.target.checked;soft();return}
+ if(a=='AS'){pages.forEach(q=>q.split=p.split);draw();return}
+ if(a=='AN'){pages.forEach(q=>q.nocrop=p.nocrop);draw();return}
+ if(a=='AZ'){pages.forEach(q=>q.noshadow=p.noshadow);draw();return}
  if(a=='e'){openEd(p);return}
  if(a=='v'){preview(p);return}
  if(a=='x'){pages.splice(i,1);pdo('photos','readwrite',st=>st.delete(p.id)).catch(()=>{})}
@@ -279,12 +287,15 @@ function flatten(c,strong){
  d=pass(pass(pass(d,r,1),r,2),1,0);
  const ref=[255,255,255];
  for(let k=0;k<3;k++){const h=new Uint32Array(256);for(let i=k;i<d.length;i+=4)h[d[i]]++;let acc=0;const n=gw*gh;for(let v=0;v<256;v++){acc+=h[v];if(acc>=n*.9){ref[k]=v;break}}}
- id.data.set(d);sx.putImageData(id,0,0);
- const b=document.createElement('canvas');b.width=W;b.height=H;
- const bx=b.getContext('2d');bx.imageSmoothingQuality='high';bx.drawImage(s,0,0,W,H);
- const x=c.getContext('2d'),im=x.getImageData(0,0,W,H),p=im.data,bg=bx.getImageData(0,0,W,H).data;
- for(let i=0;i<p.length;i+=4)for(let k=0;k<3;k++){const q=Math.max(40,bg[i+k],ref[k]/2.5);p[i+k]=Math.min(255,p[i+k]*255/q)}
- x.putImageData(im,0,0);b.width=0;s.width=0}
+ const x=c.getContext('2d'),X0=new Int32Array(W),X1=new Int32Array(W),TX=new Float32Array(W);
+ for(let i=0;i<W;i++){const f=Math.min(gw-1,Math.max(0,(i+.5)/W*gw-.5)),a=Math.floor(f);X0[i]=a;X1[i]=Math.min(gw-1,a+1);TX[i]=f-a}
+ const BH=192;
+ for(let y0=0;y0<H;y0+=BH){const hh=Math.min(BH,H-y0),im=x.getImageData(0,y0,W,hh),p=im.data;
+  for(let yy=0;yy<hh;yy++){const f=Math.min(gh-1,Math.max(0,(y0+yy+.5)/H*gh-.5)),j0=Math.floor(f),j1=Math.min(gh-1,j0+1),ty=f-j0,r0=j0*gw,r1=j1*gw;
+   for(let i=0;i<W;i++){const a=X0[i],c2=X1[i],tx=TX[i],o=(yy*W+i)*4;
+    for(let k=0;k<3;k++){const top=d[(r0+a)*4+k]*(1-tx)+d[(r0+c2)*4+k]*tx,bot=d[(r1+a)*4+k]*(1-tx)+d[(r1+c2)*4+k]*tx,v=top*(1-ty)+bot*ty,q=Math.max(40,v,ref[k]/2.5),t=p[o+k]*255/q;p[o+k]=t>255?255:t}}}
+  x.putImageData(im,0,y0)}
+ s.width=0}
 const shade=(c,strong)=>{flatten(c,strong);if(strong)flatten(c,true)};
 function paint(x,W,H,st){x.strokeStyle=x.fillStyle='#fff';x.lineCap=x.lineJoin='round';
  for(const s of st){x.lineWidth=s.r*W;x.beginPath();x.moveTo(s.pts[0][0]*W,s.pts[0][1]*H);
@@ -299,6 +310,30 @@ const MT={jpeg:'image/jpeg',png:'image/png',webp:'image/webp',gif:'image/gif',bm
 async function heicToBlob(blob){
  if(!window.heic2any)await new Promise((ok,no)=>{const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';sc.onload=ok;sc.onerror=()=>no(new Error('could not load the HEIC converter (needs internet)'));document.head.appendChild(sc)});
  const r=await heic2any({blob,toType:'image/jpeg',quality:.9});return Array.isArray(r)?r[0]:r}
+function jpegInfo(u){try{
+ if(!u||u[0]!=0xFF||u[1]!=0xD8)return null;
+ let i=2,ori=0,w=0,h=0;
+ while(i+4<u.length){
+  if(u[i]!=0xFF){i++;continue}
+  const m=u[i+1];
+  if(m==0xFF){i++;continue}
+  if(m==0xD8||m==0x01||(m>=0xD0&&m<=0xD7)){i+=2;continue}
+  const len=(u[i+2]<<8)|u[i+3];
+  if(m==0xE1&&u[i+4]==0x45&&u[i+5]==0x78&&u[i+6]==0x69&&u[i+7]==0x66){
+   const t=i+10,le=u[t]==0x49,r16=o=>le?(u[t+o]|(u[t+o+1]<<8)):((u[t+o]<<8)|u[t+o+1]),r32=o=>le?(u[t+o]|(u[t+o+1]<<8)|(u[t+o+2]<<16)|(u[t+o+3]<<24)):((u[t+o]<<24)|(u[t+o+1]<<16)|(u[t+o+2]<<8)|u[t+o+3]);
+   const ifd=r32(4),n=r16(ifd);
+   for(let k=0;k<n&&k<64;k++){const e=ifd+2+k*12;if(r16(e)==0x0112){ori=r16(e+8);break}}}
+  if(m>=0xC0&&m<=0xCF&&m!=0xC4&&m!=0xC8&&m!=0xCC){h=(u[i+5]<<8)|u[i+6];w=(u[i+7]<<8)|u[i+8];break}
+  i+=2+len}
+ return{w,h,ori}}catch(e){return null}}
+function b64(u){let s='';for(let i=0;i<u.length;i+=8192)s+=String.fromCharCode.apply(null,u.subarray(i,i+8192));return btoa(s)}
+async function headInfo(f){try{return jpegInfo(new Uint8Array(await f.slice(0,262144).arrayBuffer()))}catch(e){return null}}
+async function openScaled(p,max){
+ const hi=await headInfo(p.f);
+ if(hi&&hi.w&&hi.h){const odd=hi.ori>=5&&hi.ori<=8,uw=odd?hi.h:hi.w,uh=odd?hi.w:hi.h,k=Math.min(1,max/Math.max(uw,uh));
+  try{const b=await createImageBitmap(p.f,{imageOrientation:'from-image',resizeWidth:Math.max(1,Math.round(uw*k)),resizeHeight:Math.max(1,Math.round(uh*k)),resizeQuality:'high'});
+   if(Math.abs(b.width/b.height-uw/uh)<.03)return b;b.close()}catch(e){}}
+ return await getSource(p)}
 async function getSource(p){
  const why=[];
  if(!p.f.size)throw new Error('"'+p.f.name+'" is empty (0 KB). It may not be fully downloaded to the phone.');
@@ -316,8 +351,9 @@ async function getSource(p){
     try{const im=await loadImg({f:p.f,url});im._u=url;return im}catch(e){URL.revokeObjectURL(url);why.push('converted HEIC would not open')}}
    catch(e){why.push('HEIC conversion failed: '+e.message)}}}
  throw new Error('"'+p.f.name+'" could not be opened. Type: '+(p.f.type||'none')+', '+Math.round(p.f.size/1024)+' KB, looks like: '+sn.k+' ['+sn.h+']. '+why.join('; ')+'.')}
+const QS={1:[2600,2000,.8],2:[3600,3000,.92],3:[6000,6000,.95]};
 async function base(p,max,flat=true){
- const b=await getSource(p),iw=b.naturalWidth||b.width,ih=b.naturalHeight||b.height,sw=p.rot==90||p.rot==270;
+ const b=await openScaled(p,max),iw=b.naturalWidth||b.width,ih=b.naturalHeight||b.height,sw=p.rot==90||p.rot==270;
  const W0=sw?ih:iw,H0=sw?iw:ih,k0=Math.min(1,max/Math.max(W0,H0));
  const W=Math.round(W0*k0),H=Math.round(H0*k0),c=document.createElement('canvas');c.width=W;c.height=H;
  const x=c.getContext('2d');x.translate(W/2,H/2);x.rotate(p.rot*Math.PI/180);
@@ -326,34 +362,36 @@ async function base(p,max,flat=true){
 }
 /* ---- looks ---- */
 function filt(o,m){
- if(m=='orig')return;
- const x=o.getContext('2d'),im=x.getImageData(0,0,o.width,o.height),d=im.data;
+ if(m=='orig'||m=='raw')return;
+ const x=o.getContext('2d'),W=o.width,H=o.height,BH=256;
  if(m=='natural'){const T=[1,.975,.93],L=[[],[],[]];
   for(let k=0;k<3;k++)for(let v=0;v<256;v++)L[k][v]=255*Math.pow(v/255,1.35)*T[k];
-  for(let i=0;i<d.length;i+=4)for(let k=0;k<3;k++)d[i+k]=L[k][d[i+k]];
-  x.putImageData(im,0,0);return}
+  for(let y0=0;y0<H;y0+=BH){const hh=Math.min(BH,H-y0),im=x.getImageData(0,y0,W,hh),d=im.data;
+   for(let i=0;i<d.length;i+=4)for(let k=0;k<3;k++)d[i+k]=L[k][d[i+k]];x.putImageData(im,0,y0)}return}
  const h=new Uint32Array(256);
- for(let i=0;i<d.length;i+=4){const g=(d[i]*.3+d[i+1]*.59+d[i+2]*.11)|0;d[i]=g;h[g]++}
- const n=d.length/4;let c=0,lo=0,hi=255;
+ for(let y0=0;y0<H;y0+=BH){const hh=Math.min(BH,H-y0),d=x.getImageData(0,y0,W,hh).data;for(let i=0;i<d.length;i+=4)h[(d[i]*.3+d[i+1]*.59+d[i+2]*.11)|0]++}
+ const n=W*H;let c=0,lo=0,hi=255;
  for(let v=0;v<256;v++){c+=h[v];if(c>=n*.01){lo=v;break}}
  c=0;for(let v=0;v<256;v++){c+=h[v];if(c>=n*.8){hi=v;break}}
  if(hi-lo<20)hi=lo+20;
  const L=new Uint8Array(256);
  for(let v=0;v<256;v++){let y=Math.max(0,Math.min(255,(v-lo)*255/(hi-lo)));
   if(m=='bw')y=y>200?255:y<110?0:(y-110)*255/90;L[v]=y}
- for(let i=0;i<d.length;i+=4){const y=L[d[i]];d[i]=d[i+1]=d[i+2]=y}
- x.putImageData(im,0,0);
+ for(let y0=0;y0<H;y0+=BH){const hh=Math.min(BH,H-y0),im=x.getImageData(0,y0,W,hh),d=im.data;
+  for(let i=0;i<d.length;i+=4){const y=L[(d[i]*.3+d[i+1]*.59+d[i+2]*.11)|0];d[i]=d[i+1]=d[i+2]=y}x.putImageData(im,0,y0)}
 }
 async function render(p,part,m){
- let c=await base(p,O.q==2?3600:2600,false);
+ let c=await base(p,QS[O.q][0],false);
  if(p.strokes.length)paint(c.getContext('2d'),c.width,c.height,p.strokes);
  if(O.ac&&!p.nocrop){const q=detectQuad(c);if(q){const w2=warp(c,q,2400);c.width=0;c=w2}}
  if(O.crop)c=applyCrop(c,O.crop);
- if(O.shadow&&!p.noshadow)shade(c,O.shs==2);
+ if(O.shadow&&!p.noshadow&&m!='raw')shade(c,O.shs==2);
  const W=c.width,H=c.height;
  const t=O.trim,rx=W*t,ry=H*t,rw=W-2*rx,rh=H-2*ry;
  let sx=rx,w=rw;if(part==1)w=rw/2;if(part==2){sx=rx+rw/2;w=rw/2}
- const k=Math.min(1,(O.q==2?3000:2000)/Math.max(w,rh)),o=document.createElement('canvas');
+ const k=Math.min(1,QS[O.q][1]/Math.max(w,rh));
+ if(k>=1&&sx==0&&ry==0&&Math.abs(w-W)<1&&Math.abs(rh-H)<1){filt(c,m);return c}
+ const o=document.createElement('canvas');
  o.width=Math.round(w*k);o.height=Math.round(rh*k);
  o.getContext('2d').drawImage(c,sx,ry,w,rh,0,0,o.width,o.height);c.width=0;
  filt(o,m);return o;
@@ -527,12 +565,16 @@ async function loadFont(f){
   let s='';for(let i=0;i<b.length;i+=8192)s+=String.fromCharCode.apply(null,b.subarray(i,i+8192));f.b64=btoa(s);return true}catch(e){}}
  return false}
 function addFonts(pdf,act){for(const k of act){const f=FONTS[k];try{pdf.addFileToVFS(f.name+'.ttf',f.b64);pdf.addFont(f.name+'.ttf',f.name,'normal','Identity-H')}catch(e){f.bad=true}}}
-function putWord(pdf,wd,sc,act){
+function putWord(pdf,wd,sc,act,G){
  let t=wd.text,font='helvetica',keep='\\x20-\\x7E\\u00A0-\\u00FF';
  for(const k of act){const f=FONTS[k];if(!f.bad&&f.re.test(t)){font=f.name;keep+=f.rng;break}}
  t=t.replace(new RegExp('[^'+keep+']','g'),'');if(!t.trim())return;
- const bh=(wd.bbox.y1-wd.bbox.y0)*sc;
- try{pdf.setFont(font);pdf.setFontSize(Math.max(4,bh*.8));pdf.text(t,wd.bbox.x0*sc,wd.bbox.y1*sc-bh*.2,{renderingMode:'invisible'})}catch(e){}}
+ const bh0=wd.bbox.y1-wd.bbox.y0,bh=bh0*sc,px=wd.bbox.x0,py=wd.bbox.y1-bh0*.2;let X,Y,ang=0;
+ if(!G||!G.R){X=px*sc;Y=py*sc}
+ else{const u=px/G.ow,v=py/G.oh;let us,vs;
+  if(G.R==90){us=v;vs=1-u}else if(G.R==180){us=1-u;vs=1-v}else{us=1-v;vs=u}
+  X=us*G.mw;Y=vs*G.mh;ang=G.R}
+ try{pdf.setFont(font);pdf.setFontSize(Math.max(4,bh*.8));pdf.text(t,X,Y,ang?{renderingMode:'invisible',angle:ang}:{renderingMode:'invisible'})}catch(e){}}
 /* ---- chapter finder ---- */
 const KW=/^(chapter|part|section|unit|lesson|පරිච්ඡේදය|කොටස|பாடம்|அத்தியாயம்|பகுதி)(?=[\s:.\-\d]|$)/i;
 function heading(data,H){
@@ -565,7 +607,7 @@ function addOutline(doc,items){
   if(i>0)d.set(N('Prev'),refs[i-1]);if(i<items.length-1)d.set(N('Next'),refs[i+1]);ctx.assign(refs[i],d)});
  ctx.assign(root,ctx.obj({Type:'Outlines',First:refs[0],Last:refs[refs.length-1],Count:items.length}));
  doc.catalog.set(N('Outlines'),root);doc.catalog.set(N('PageMode'),N('UseOutlines'))}
-async function withOutline(ab,items){const d=await PDFLib.PDFDocument.load(ab);addOutline(d,items);return await d.save()}
+async function finish(ab,items,rots){const d=await PDFLib.PDFDocument.load(ab);(rots||[]).forEach((r,i)=>{if(r)d.getPage(i).setRotation(PDFLib.degrees(r))});addOutline(d,items);return await d.save()}
 /* ---- save the book for the Reader ---- */
 function saveBook(b){return new Promise((ok,no)=>{const r=indexedDB.open('palimpsest',1);
  r.onupgradeneeded=()=>r.result.createObjectStore('books',{keyPath:'name'});
@@ -579,7 +621,9 @@ $('go').onclick=async()=>{
  const size=Math.max(1,+$('chunk').value||40),base_=$('name').value||'scan',out=$('out').value;
  const{jsPDF}=window.jspdf,jobs=[],parts=[],nums=[],heads=[],tocPages=[],notes=[],act=[],texts=[],skipped=new Set();
  pages.forEach(p=>(p.split?[1,2]:[0]).forEach(pt=>jobs.push([p,pt])));
- const multi=jobs.length>size,wantParts=out!='giant',wantGiant=out!='parts',holdAll=wantGiant||bm;
+ const raw=m=='raw';let wantParts=out!='giant',wantGiant=out!='parts',bmOn=bm;
+ if(raw){if(wantGiant||bm)notes.push('Original photo mode makes very large files, so every part is saved on its own. One giant PDF and chapter bookmarks are not made in this mode.');wantParts=true;wantGiant=false;bmOn=false}
+ const multi=jobs.length>size,holdAll=wantGiant||bmOn;
  stop=false;$('go').style.display='none';$('stop').style.display='block';
  let wl=null,worker=null,done=0,part=0;const t0=Date.now();
  try{
@@ -588,39 +632,59 @@ $('go').onclick=async()=>{
    $('st').textContent='Loading the text reader and languages (first time needs internet, can take a few minutes)…';
    for(const k of['sin','tam'])if(lang.includes(k)){if(await loadFont(FONTS[k]))act.push(k);else notes.push('Could not download the '+(k=='sin'?'Sinhala':'Tamil')+' font. That text is only in the .txt file, not hidden inside the PDF.')}
    worker=await Tesseract.createWorker(lang)}
-  for(let s=0;s<jobs.length&&!stop;s+=size){
-   part++;let pdf=null,txt='',cnt=0;const sd=done;
+  for(let s=0;s<jobs.length&&!stop;){
+   part++;let pdf=null,txt='',cnt=0,taken=0,bytes=0;const sd=done,rots=[],sfx=(multi||raw)?'_part'+part:'';
    for(const[p,pt]of jobs.slice(s,s+size)){
     if(stop)break;
-    let o;try{o=await render(p,pt,m)}catch(er){skipped.add(er.message);$('st').textContent='Skipped a photo that cannot be opened. Continuing…';await new Promise(r=>setTimeout(r,0));continue}
-    const w=595,h=w*o.height/o.width,or=w>h?'l':'p';
-    if(!pdf){pdf=new jsPDF({unit:'pt',format:[w,h],orientation:or,compress:true});addFonts(pdf,act)}else pdf.addPage([w,h],or);
-    pdf.addImage(o.toDataURL('image/jpeg',O.q==2?.92:.8),'JPEG',0,0,w,h);
+    taken++;
+    let rawInfo=null,o=null,w=595,h=595,R=0;
+    if(raw&&!p.split&&!O.crop&&!O.trim&&!(O.ac&&!p.nocrop)&&!p.strokes.length){
+     try{if(/jpe?g/i.test((p.f.type||'')+' '+p.f.name)){const u8=new Uint8Array(await p.f.arrayBuffer()),inf=jpegInfo(u8);if(inf&&inf.w&&[0,1,3,6,8].includes(inf.ori))rawInfo={u8,inf}}}catch(e){}}
+    if(rawInfo){
+     let added=false;
+     try{const{u8,inf}=rawInfo,ex={0:0,1:0,3:180,6:90,8:270}[inf.ori];R=(ex+p.rot)%360;
+      const odd=R%180!=0,Wu=odd?inf.h:inf.w,Hu=odd?inf.w:inf.h,dh=595*Hu/Wu;w=odd?dh:595;h=odd?595:dh;
+      const or=w>h?'l':'p';
+      if(!pdf){pdf=new jsPDF({unit:'pt',format:[w,h],orientation:or,compress:true});addFonts(pdf,act)}else pdf.addPage([w,h],or);
+      added=true;pdf.addImage('data:image/jpeg;base64,'+b64(u8),'JPEG',0,0,w,h,undefined,'NONE');rots.push(R);bytes+=u8.length}
+     catch(e){if(added){if(pdf.getNumberOfPages()>1)pdf.deletePage(pdf.getNumberOfPages());else pdf=null}rawInfo=null;R=0}}
+    if(!rawInfo){
+     try{o=await render(p,pt,m)}catch(er){skipped.add(er.message);$('st').textContent='Skipped a photo that cannot be opened. Continuing…';await new Promise(r=>setTimeout(r,0));continue}
+     w=595;h=w*o.height/o.width;const or=w>h?'l':'p';
+     if(!pdf){pdf=new jsPDF({unit:'pt',format:[w,h],orientation:or,compress:true});addFonts(pdf,act)}else pdf.addPage([w,h],or);
+     pdf.addImage(o.toDataURL('image/jpeg',QS[O.q][2]),'JPEG',0,0,w,h);rots.push(0)}
     if(ocr){
-     let oc=o;if(o.width>2200){oc=document.createElement('canvas');oc.width=2200;oc.height=Math.round(o.height*2200/o.width);oc.getContext('2d').drawImage(o,0,0,oc.width,oc.height)}
-     const{data}=await worker.recognize(oc),sc=w/oc.width,pos=done+1;const oh=oc.height;if(oc!==o)oc.width=0;
+     let oc;if(rawInfo)oc=await base(p,2200,false);
+     else{oc=o;if(o.width>2200){oc=document.createElement('canvas');oc.width=2200;oc.height=Math.round(o.height*2200/o.width);oc.getContext('2d').drawImage(o,0,0,oc.width,oc.height)}}
+     const{data}=await worker.recognize(oc),sc=595/oc.width,pos=done+1,ow=oc.width,oh=oc.height;if(oc!==o)oc.width=0;
      txt+=data.text+'\n\n----- page '+pos+' -----\n\n';
      nums.push({pos,n:pageNum(data.words||[],oh)});texts.push({pos,text:data.text});
-     if(bm){const hd=heading(data,oh);if(hd&&(!heads.length||heads[heads.length-1].title!==hd))heads.push({pos,title:hd});
+     if(bmOn){const hd=heading(data,oh);if(hd&&(!heads.length||heads[heads.length-1].title!==hd))heads.push({pos,title:hd});
       const tl=tocFrom(data.text);if(tl.length)tocPages.push({pos,items:tl})}
-     for(const wd of(data.words||[]))putWord(pdf,wd,sc,act);
+     for(const wd of(data.words||[]))putWord(pdf,wd,sc,act,{R,ow,oh,mw:w,mh:h});
     }
-    o.width=0;done++;cnt++;
+    if(o)o.width=0;rawInfo=null;done++;cnt++;
     const per=(Date.now()-t0)/done/1000,left=Math.max(0,Math.round(per*(jobs.length-done-skipped.size)/60));
     $('st').textContent='Page '+done+' of '+jobs.length+' done. About '+left+' min left. Keep this screen open.';
     await new Promise(r=>setTimeout(r,0));
+    if(bytes>80e6)break;
    }
-   if(pdf){if(holdAll)parts.push({ab:pdf.output('arraybuffer'),start:sd,n:cnt,idx:part});else save(pdf.output('blob'),base_+(multi?'_part'+part:'')+'.pdf')}
-   if(tx&&ocr&&txt)save(new Blob([txt],{type:'text/plain'}),base_+(multi?'_part'+part:'')+'.txt');
+   if(pdf){
+    if(holdAll)parts.push({ab:pdf.output('arraybuffer'),start:sd,n:cnt,idx:part,rots});
+    else if(rots.some(Boolean))save(new Blob([await finish(pdf.output('arraybuffer'),[],rots)],{type:'application/pdf'}),base_+sfx+'.pdf');
+    else save(pdf.output('blob'),base_+sfx+'.pdf')}
+   if(tx&&ocr&&txt)save(new Blob([txt],{type:'text/plain'}),base_+sfx+'.txt');
+   s+=Math.max(1,taken);
   }
-  const ents=bm?findBookmarks(nums,heads,tocPages,done):[];
+  const ents=bmOn?findBookmarks(nums,heads,tocPages,done):[];
   if(parts.length){
    $('st').textContent='Saving your PDF…';
    if(wantParts||!multi)for(const pt of parts){let ab=pt.ab;
     const es=ents.filter(e=>e.pos>pt.start&&e.pos<=pt.start+pt.n);
-    if(es.length)ab=await withOutline(ab,es.map(e=>({title:e.title,page:e.pos-1-pt.start})));
+    if(es.length||(pt.rots&&pt.rots.some(Boolean)))ab=await finish(ab,es.map(e=>({title:e.title,page:e.pos-1-pt.start})),pt.rots);
     save(new Blob([ab],{type:'application/pdf'}),base_+(multi?'_part'+pt.idx:'')+'.pdf')}
    if(wantGiant&&multi){const doc=await mergeDoc(parts.map(p=>p.ab));
+    parts.flatMap(p=>p.rots||[]).forEach((r,i)=>{if(r)doc.getPage(i).setRotation(PDFLib.degrees(r))});
     addOutline(doc,ents.map(e=>({title:e.title,page:e.pos-1})));
     save(new Blob([await doc.save()],{type:'application/pdf'}),base_+(wantParts?'_FULL':'')+'.pdf')}}
   if(skipped.size)notes.push('SKIPPED PHOTOS (they could not be opened, so they are not in the PDF):\n'+[...skipped].join('\n'));
@@ -628,7 +692,7 @@ $('go').onclick=async()=>{
   if(ocr&&texts.length){try{await saveBook({name:base_,date:Date.now(),pages:texts,chapters:ents.map(e=>({title:e.title,pos:e.pos}))});msg+=' The book is ready in the Reader.'}catch(e){}}
   if(ocr&&nums.length){const r=check(nums),read=nums.length-r.un;
    let t='PAGE NUMBER CHECK\nRead a number on '+read+' of '+nums.length+' pages.\n\n'+(r.out.length?r.out.join('\n'):'No missing, repeated or out-of-order numbers found.');
-   if(bm)t+='\n\nCHAPTER BOOKMARKS\n'+(ents.length?'Found '+ents.length+' from '+ents[0].src+':\n'+ents.slice(0,60).map(e=>'• '+e.title+'  → page '+e.pos).join('\n'):'No chapter titles found.');
+   if(bmOn)t+='\n\nCHAPTER BOOKMARKS\n'+(ents.length?'Found '+ents.length+' from '+ents[0].src+':\n'+ents.slice(0,60).map(e=>'• '+e.title+'  → page '+e.pos).join('\n'):'No chapter titles found.');
    if(notes.length)t+='\n\nNOTES\n'+notes.join('\n');
    $('rep').textContent=t;$('rep').style.display='block';save(new Blob([t],{type:'text/plain'}),base_+'_report.txt');
    msg+=r.out.length?' Page check found '+r.out.length+' thing(s), see below.':' Page numbers look complete.'}
