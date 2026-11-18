@@ -35,7 +35,7 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 .sp span{position:absolute;bottom:0;left:0;right:0;text-align:center;font-size:11px;background:#000b;color:#fff}
 </style></head><body>
 <h1>Palimpsest Scanner</h1>
-<div id="ver" style="font-size:12px;opacity:.6;margin:-2px 0 6px">Version 12 · 18 Nov 2026</div>
+<div id="ver" style="font-size:12px;opacity:.6;margin:-2px 0 6px">Version 13 · 18 Nov 2026</div>
 <p class="s">Photos in, natural searchable PDF out. Free. No limits.</p>
 <p style="margin:0 0 10px"><button class="g" id="hbtn">❓ Help</button><button class="g" id="upd">🔄 Update app</button><button class="g" id="inst" style="display:none">⬇ Install app</button><a href="reader.html" style="color:var(--ac);font-size:16px">📖 Open the Reader (read or listen to your books)</a></p>
 <div id="tabs"><button id="tb1">📷 Pages</button><button class="g" id="tb2">⚙ Make PDF</button></div>
@@ -96,9 +96,12 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 <div id="rep"></div>
 
 <h2>Combine PDFs</h2>
-<p class="s">Pick PDFs you made earlier. They are joined in name order (part1, part2, part10…). The hidden text is kept.</p>
+<p class="s">Add the PDFs, put them in the order you want, then tap Combine. The hidden text is kept. Very large PDFs may not fit in the phone memory, so combine them in smaller groups.</p>
 <input id="pdfs" type="file" accept="application/pdf,.pdf" multiple hidden>
-<label class="b" for="pdfs">Choose PDFs to combine</label>
+<label class="b" for="pdfs">+ Add PDFs</label><button class="g" id="csort">Sort by name</button><button class="g" id="cclr">Clear list</button>
+<div id="clist"></div>
+<input id="cname" type="text" value="Combined" placeholder="Name of the combined PDF">
+<button id="cgo" style="width:100%">Combine the PDFs</button>
 <div id="cst"></div>
 
 </div>
@@ -546,73 +549,28 @@ async function mergeDoc(bufs){const doc=await PDFLib.PDFDocument.create();
  for(const b of bufs){const s=await PDFLib.PDFDocument.load(b);(await doc.copyPages(s,s.getPageIndices())).forEach(pg=>doc.addPage(pg))}
  return doc}
 async function merge(bufs){return new Blob([await(await mergeDoc(bufs)).save()],{type:'application/pdf'})}
-$('pdfs').onchange=async e=>{
- const fs=[...e.target.files].sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));e.target.value='';
- if(fs.length<2){$('cst').textContent='Choose at least 2 PDFs.';return}
- try{$('cst').textContent='Joining '+fs.length+' PDFs…';
-  const bufs=[];for(const f of fs)bufs.push(await f.arrayBuffer());
-  save(await merge(bufs),'Combined.pdf');
-  $('cst').textContent='Done! Combined.pdf is in Downloads. Order: '+fs.map(f=>f.name).join(' → ');
- }catch(er){$('cst').textContent='Problem: '+er.message}};
-/* ---- fonts for Sinhala / Tamil hidden text ---- */
-const CP='https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@f1c541f68eb1de8f3c14fb8eefc8adf2c2a7a1fd/unhinted/';
-const FONTS={
- sin:{re:/[\u0D80-\u0DFF]/,rng:'\\u0D80-\\u0DFF\\u200C\\u200D',name:'NotoSinhala',b64:null,bad:false,urls:[CP+'NotoSansSinhala-Regular.ttf','https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@main/hinted/ttf/NotoSansSinhala/NotoSansSinhala-Regular.ttf']},
- tam:{re:/[\u0B80-\u0BFF]/,rng:'\\u0B80-\\u0BFF\\u200C\\u200D',name:'NotoTamil',b64:null,bad:false,urls:[CP+'NotoSansTamil-Regular.ttf','https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@main/hinted/ttf/NotoSansTamil/NotoSansTamil-Regular.ttf']}};
-async function loadFont(f){
- if(f.b64)return true;
- for(const u of f.urls){try{const r=await fetch(u);if(!r.ok)continue;const b=new Uint8Array(await r.arrayBuffer());
-  let s='';for(let i=0;i<b.length;i+=8192)s+=String.fromCharCode.apply(null,b.subarray(i,i+8192));f.b64=btoa(s);return true}catch(e){}}
- return false}
-function addFonts(pdf,act){for(const k of act){const f=FONTS[k];try{pdf.addFileToVFS(f.name+'.ttf',f.b64);pdf.addFont(f.name+'.ttf',f.name,'normal','Identity-H')}catch(e){f.bad=true}}}
-function putWord(pdf,wd,sc,act,G){
- let t=wd.text,font='helvetica',keep='\\x20-\\x7E\\u00A0-\\u00FF';
- for(const k of act){const f=FONTS[k];if(!f.bad&&f.re.test(t)){font=f.name;keep+=f.rng;break}}
- t=t.replace(new RegExp('[^'+keep+']','g'),'');if(!t.trim())return;
- const bh0=wd.bbox.y1-wd.bbox.y0,bh=bh0*sc,px=wd.bbox.x0,py=wd.bbox.y1-bh0*.2;let X,Y,ang=0;
- if(!G||!G.R){X=px*sc;Y=py*sc}
- else{const u=px/G.ow,v=py/G.oh;let us,vs;
-  if(G.R==90){us=v;vs=1-u}else if(G.R==180){us=1-u;vs=1-v}else{us=1-v;vs=u}
-  X=us*G.mw;Y=vs*G.mh;ang=G.R}
- try{pdf.setFont(font);pdf.setFontSize(Math.max(4,bh*.8));pdf.text(t,X,Y,ang?{renderingMode:'invisible',angle:ang}:{renderingMode:'invisible'})}catch(e){}}
-/* ---- chapter finder ---- */
-const KW=/^(chapter|part|section|unit|lesson|පරිච්ඡේදය|කොටස|பாடம்|அத்தியாயம்|பகுதி)(?=[\s:.\-\d]|$)/i;
-function heading(data,H){
- const L=(data.lines||[]).map(l=>({t:l.text.replace(/\s+/g,' ').trim(),h:l.bbox.y1-l.bbox.y0,y:l.bbox.y0,c:l.confidence})).filter(l=>l.t.length>2);
- if(!L.length)return null;const hs=L.map(l=>l.h).sort((a,b)=>a-b),M=hs[hs.length>>1];let best=null;
- for(const l of L){if(/^[\d\W]+$/.test(l.t)||l.t.length>80||l.c<45)continue;
-  const big=L.length>=3&&l.h>=1.7*M&&l.y<H*.5,kw=KW.test(l.t)&&l.y<H*.4;
-  if(big||kw){const sc=l.h+(kw?1000:0);if(!best||sc>best.sc)best={t:l.t,sc}}}
- return best?best.t:null}
-function tocFrom(text){const r=[];
- for(const ln of text.split('\n')){const m=ln.trim().match(/^(.{3,90}?)(?:\s*[.·…_‒–—-]\s*){3,}\s*(\d{1,4})$/);
-  if(m){const t=m[1].replace(/[\s.·…_‒–—-]+$/,'').trim();if(t.length>=3)r.push({title:t,n:+m[2]})}}
- return r.length>=3?r:[]}
-function findBookmarks(nums,heads,tocPages,total){
- let ents=[];const known=nums.filter(x=>x.n!=null);
- const toc=tocPages.filter(t=>t.pos<=Math.max(15,total*.2)).flatMap(t=>t.items);
- if(toc.length>=3&&toc.length<=60&&known.length){
-  const res=n=>{const ex=known.find(k=>k.n===n);if(ex)return ex.pos;let b=null;
-   for(const k of known){const dd=Math.abs(k.n-n);if(!b||dd<b.dd)b={k,dd}}
-   const p=b.k.pos+(n-b.k.n);return p>=1&&p<=total?p:null};
-  for(const t of toc){const p=res(t.n);if(p)ents.push({title:t.title,pos:p,src:'the contents page'})}}
- if(ents.length<3)ents=heads.map(h=>({title:h.title,pos:h.pos,src:'big headings'}));
- ents.sort((a,b)=>a.pos-b.pos);
- return ents.filter((e,i)=>!i||e.title!==ents[i-1].title||e.pos!==ents[i-1].pos)}
-function addOutline(doc,items){
- const ctx=doc.context,pg=doc.getPages(),N=PDFLib.PDFName.of;
- items=items.filter(i=>i.page>=0&&i.page<pg.length);if(!items.length)return;
- const root=ctx.nextRef(),refs=items.map(()=>ctx.nextRef());
- items.forEach((it,i)=>{const d=ctx.obj({Title:PDFLib.PDFHexString.fromText(it.title),Parent:root,Dest:[pg[it.page].ref,'Fit']});
-  if(i>0)d.set(N('Prev'),refs[i-1]);if(i<items.length-1)d.set(N('Next'),refs[i+1]);ctx.assign(refs[i],d)});
- ctx.assign(root,ctx.obj({Type:'Outlines',First:refs[0],Last:refs[refs.length-1],Count:items.length}));
- doc.catalog.set(N('Outlines'),root);doc.catalog.set(N('PageMode'),N('UseOutlines'))}
-async function finish(ab,items,rots){const d=await PDFLib.PDFDocument.load(ab);(rots||[]).forEach((r,i)=>{if(r)d.getPage(i).setRotation(PDFLib.degrees(r))});addOutline(d,items);return await d.save()}
-/* ---- save the book for the Reader ---- */
-function saveBook(b){return new Promise((ok,no)=>{const r=indexedDB.open('palimpsest',1);
- r.onupgradeneeded=()=>r.result.createObjectStore('books',{keyPath:'name'});
- r.onsuccess=()=>{const q=r.result.transaction('books','readwrite').objectStore('books').put(b);q.onsuccess=()=>ok();q.onerror=()=>no(q.error)};r.onerror=()=>no(r.error)})}
-/* ---- main ---- */
+let combo=[];
+function cdraw(){$('clist').innerHTML=combo.length?combo.map((f,i)=>`<div class="card"><div style="flex:1;min-width:0;word-break:break-all"><b>${i+1}.</b> ${esc(f.name)}<br><small>${(f.size/1048576).toFixed(1)} MB</small></div><div><button class="g" data-c="u" data-i="${i}">▲</button><button class="g" data-c="d" data-i="${i}">▼</button><button class="g" data-c="x" data-i="${i}">✕</button></div></div>`).join(''):'<p class="s">No PDFs chosen yet.</p>'}
+$('pdfs').onchange=e=>{for(const f of e.target.files)combo.push(f);cdraw()};
+$('pdfs').onclick=e=>{e.target.value=''};
+$('csort').onclick=()=>{combo.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));cdraw()};
+$('cclr').onclick=()=>{combo=[];cdraw();$('cst').textContent=''};
+$('clist').onclick=e=>{const c=e.target.dataset.c,i=+e.target.dataset.i;if(!c)return;
+ if(c=='x')combo.splice(i,1);
+ if(c=='u'&&i>0)[combo[i-1],combo[i]]=[combo[i],combo[i-1]];
+ if(c=='d'&&i<combo.length-1)[combo[i+1],combo[i]]=[combo[i],combo[i+1]];
+ cdraw()};
+$('cgo').onclick=async()=>{
+ if(combo.length<2){$('cst').textContent='Add at least 2 PDFs.';return}
+ $('cgo').disabled=true;
+ try{const bufs=[];
+  for(let i=0;i<combo.length;i++){$('cst').textContent='Reading PDF '+(i+1)+' of '+combo.length+'…';bufs.push(await readFile(combo[i]))}
+  $('cst').textContent='Joining the PDFs…';
+  save(await merge(bufs),($('cname').value||'Combined')+'.pdf');
+  $('cst').textContent='Done! Saved in Downloads. Order: '+combo.map(f=>f.name).join(' → ')}
+ catch(er){$('cst').textContent='Problem: '+er.message+' (the PDFs may be too big for the phone memory, try fewer at a time)'}
+ $('cgo').disabled=false};
+cdraw();
 $('stop').onclick=()=>{stop=true;$('st').textContent='Stopping after this page…'};
 $('go').onclick=async()=>{
  if(!pages.length){$('st').textContent='Add photos first.';return}
