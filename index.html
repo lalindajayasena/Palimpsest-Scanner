@@ -35,7 +35,7 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 .sp span{position:absolute;bottom:0;left:0;right:0;text-align:center;font-size:11px;background:#000b;color:#fff}
 </style></head><body>
 <h1>Palimpsest Scanner</h1>
-<div id="ver" style="font-size:12px;opacity:.6;margin:-2px 0 6px">Version 15 · 19 Nov 2026</div>
+<div id="ver" style="font-size:12px;opacity:.6;margin:-2px 0 6px">Version 16 · 20 Nov 2026</div>
 <p class="s">Photos in, natural searchable PDF out. Free. No limits.</p>
 <p style="margin:0 0 10px"><button class="g" id="hbtn">❓ Help</button><button class="g" id="upd">🔄 Update app</button><button class="g" id="inst" style="display:none">⬇ Install app</button><a href="reader.html" style="color:var(--ac);font-size:16px">📖 Open the Reader (read or listen to your books)</a> <a href="editor.html" style="color:var(--ac);font-size:16px;margin-left:10px">✏ PDF Editor</a></p>
 <div id="tabs"><button id="tb1">📷 Pages</button><button class="g" id="tb2">⚙ Make PDF</button></div>
@@ -96,7 +96,7 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 <div id="rep"></div>
 
 <h2>Combine PDFs</h2>
-<p class="s">Add the PDFs, put them in the order you want, then tap Combine. The hidden text is kept. Very large PDFs may not fit in the phone memory, so combine them in smaller groups.</p>
+<p class="s">Add the PDFs, put them in the order you want, then tap Combine. The hidden text is kept. The app joins PDFs made by this app without loading them into memory, so even big PDFs should work.</p>
 <input id="pdfs" type="file" accept="application/pdf,.pdf" multiple hidden>
 <label class="b" for="pdfs">+ Add PDFs</label><button class="g" id="csort">Sort by name</button><button class="g" id="cclr">Clear list</button>
 <div id="clist"></div>
@@ -544,14 +544,96 @@ function check(nums){const out=[];let prev=null,un=0;
   prev={pos,n}}
  return{out,un}}
 /* ---- saving helpers ---- */
-function save(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000)}
+function save(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},180000)}
 async function mergeDoc(bufs){const doc=await PDFLib.PDFDocument.create();
  for(const b of bufs){const s=await PDFLib.PDFDocument.load(b);(await doc.copyPages(s,s.getPageIndices())).forEach(pg=>doc.addPage(pg))}
  return doc}
-async function merge(bufs){return new Blob([await(await mergeDoc(bufs)).save()],{type:'application/pdf'})}
+async function merge(bufs){return new Blob([await(await mergeDoc(bufs)).save({useObjectStreams:false})],{type:'application/pdf'})}
+/* ---- joining PDFs without loading them into memory ---- */
+const{streamMerge,NoStream}=(()=>{
+class NoStream extends Error{}
+const lat=s=>{const u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i)&255;return u};
+async function rd(f,a,b){const u=new Uint8Array(await f.slice(a,b).arrayBuffer());let s='';for(let i=0;i<u.length;i+=8192)s+=String.fromCharCode.apply(null,u.subarray(i,i+8192));return s}
+async function parseSrc(f){
+ const size=f.size,tail=await rd(f,Math.max(0,size-1100),size),sx=tail.lastIndexOf('startxref');
+ if(sx<0)throw new NoStream('no startxref');
+ const sxo=parseInt(tail.slice(sx+9).trim(),10);
+ if(!(sxo>0&&sxo<size))throw new NoStream('bad startxref');
+ const xt=await rd(f,sxo,size);
+ if(!/^\s*xref/.test(xt))throw new NoStream('xref stream');
+ const entries=new Map(),hdr=/\s*(\d+)\s+(\d+)\s*/y,ent=/(\d{10})\s+(\d{5})\s+([nf])\s*/y;
+ let pos=xt.indexOf('xref')+4;
+ for(;;){hdr.lastIndex=pos;const m=hdr.exec(xt);if(!m)break;const first=+m[1],count=+m[2];pos=hdr.lastIndex;
+  for(let i=0;i<count;i++){ent.lastIndex=pos;const e=ent.exec(xt);if(!e)throw new NoStream('bad xref');pos=ent.lastIndex;if(e[3]=='n'&&first+i>0)entries.set(first+i,+e[1])}}
+ const ti=xt.indexOf('trailer');if(ti<0)throw new NoStream('no trailer');
+ const tr=xt.slice(ti);
+ if(/\/Prev|\/Encrypt|\/XRefStm/.test(tr))throw new NoStream('special file');
+ const root=/\/Root\s+(\d+)\s+\d+\s+R/.exec(tr),info=/\/Info\s+(\d+)\s+\d+\s+R/.exec(tr),sz=/\/Size\s+(\d+)/.exec(tr);
+ if(!root||!entries.size)throw new NoStream('no root');
+ const sorted=[...new Set(entries.values())].sort((a,b)=>a-b),next=new Map();
+ sorted.forEach((o,i)=>next.set(o,i+1<sorted.length?sorted[i+1]:sxo));
+ return{entries,next,root:+root[1],info:info?+info[1]:0,size:Math.max(sz?+sz[1]:0,Math.max(...entries.keys())+1)}}
+const STR=/>>\s*stream(\r\n|\n|\r)/;
+async function getObj(f,S,num){
+ const off=S.entries.get(num);if(off==null)throw new NoStream('object missing');
+ const end=S.next.get(off);let head=await rd(f,off,Math.min(end,off+16384));
+ const om=/^\s*(\d+)\s+(\d+)\s+obj/.exec(head);if(!om||+om[1]!==num)throw new NoStream('bad object header');
+ const sm=STR.exec(head);
+ if(sm)return{off,end,stream:true,dict:head.slice(om[0].length,sm.index+2),dataStart:off+sm.index+sm[0].length};
+ if(end-off>16384){if(end-off>4e6)throw new NoStream('big object');head=await rd(f,off,end);if(STR.test(head))throw new NoStream('large dictionary')}
+ const em=head.lastIndexOf('endobj');if(em<0)throw new NoStream('no endobj');
+ return{off,end,stream:false,dict:head.slice(om[0].length,em)}}
+async function walk(f,S,num,out,skip,depth){
+ if(depth>20)throw new NoStream('deep tree');
+ const o=await getObj(f,S,num);
+ if(!o.stream&&/\/Kids/.test(o.dict)){
+  if(/\/(Rotate|CropBox)\b/.test(o.dict))throw new NoStream('inherited settings');
+  skip.add(num);const km=/\/Kids\s*\[([^\]]*)\]/.exec(o.dict);if(!km)throw new NoStream('kids');
+  for(const m of km[1].matchAll(/(\d+)\s+\d+\s+R/g))await walk(f,S,+m[1],out,skip,depth+1)}
+ else{if(!/\/MediaBox/.test(o.dict)||!/\/Resources/.test(o.dict))throw new NoStream('inherited settings');out.push(num)}}
+async function emit(f,S,num,base,isPage){
+ const o=await getObj(f,S,num),nn=num+base;
+ let d=o.dict.replace(/(\d+)\s+(\d+)\s+R\b/g,(m,a)=>(+a+base)+' 0 R');
+ if(isPage)d=d.replace(/\/Parent\s+\d+\s+0\s+R/,'/Parent 2 0 R');
+ if(!o.stream)return[lat(nn+' 0 obj\n'+d.trim()+'\nendobj\n')];
+ const ts=Math.max(o.off,o.end-512),tail=await rd(f,ts,o.end),ei=tail.lastIndexOf('endstream');
+ if(ei<0)throw new NoStream('no endstream');
+ let de=ts+ei;const pre=tail.slice(Math.max(0,ei-2),ei);
+ if(pre.endsWith('\r\n'))de-=2;else if(pre.endsWith('\n')||pre.endsWith('\r'))de-=1;
+ const len=de-o.dataStart;if(len<0)throw new NoStream('bad stream');
+ const lr=/\/Length\s+\d+(\s+\d+\s+R)?/;
+ d=lr.test(d)?d.replace(lr,'/Length '+len):d.replace(/>>\s*$/,'/Length '+len+'>>');
+ return[lat(nn+' 0 obj\n'+d.trim()+'\nstream\n'),f.slice(o.dataStart,de),lat('\nendstream\nendobj\n')]}
+async function streamMerge(files,prog){
+ const parts=[],offs=new Map(),pageRefs=[];let pos=0,base=2;
+ const put=a=>{parts.push(a);pos+=a.size!==undefined?a.size:a.length};
+ put(lat('%PDF-1.7\n%\xE2\xE3\xCF\xD3\n'));
+ for(let k=0;k<files.length;k++){
+  const f=files[k];if(prog)prog(k,files.length);
+  const S=await parseSrc(f),root=await getObj(f,S,S.root),pm=/\/Pages\s+(\d+)\s+\d+\s+R/.exec(root.dict);
+  if(!pm)throw new NoStream('no pages');
+  const skip=new Set([S.root]);if(S.info)skip.add(S.info);
+  const leaves=[];await walk(f,S,+pm[1],leaves,skip,0);
+  const ls=new Set(leaves);
+  for(const n of [...S.entries.keys()].sort((a,b)=>a-b)){
+   if(skip.has(n))continue;
+   offs.set(n+base,pos);for(const a of await emit(f,S,n,base,ls.has(n)))put(a);
+   if(parts.length%200==0)await new Promise(r=>setTimeout(r,0))}
+  leaves.forEach(n=>pageRefs.push(n+base));base+=S.size-1}
+ offs.set(1,pos);put(lat('1 0 obj\n<</Type /Catalog /Pages 2 0 R>>\nendobj\n'));
+ offs.set(2,pos);put(lat('2 0 obj\n<</Type /Pages /Kids ['+pageRefs.map(n=>n+' 0 R').join(' ')+'] /Count '+pageRefs.length+'>>\nendobj\n'));
+ const N=base,xp=pos,free=[0];for(let i=1;i<=N;i++)if(!offs.has(i))free.push(i);
+ const nf=new Map();free.forEach((n,i)=>nf.set(n,free[i+1]||0));
+ const p10=n=>String(n).padStart(10,'0');let x='xref\n0 '+(N+1)+'\n';
+ for(let i=0;i<=N;i++)x+=offs.has(i)?p10(offs.get(i))+' 00000 n \n':p10(nf.get(i))+(i==0?' 65535':' 00001')+' f \n';
+ x+='trailer\n<</Size '+(N+1)+' /Root 1 0 R>>\nstartxref\n'+xp+'\n%%EOF\n';
+ put(lat(x));
+ return new Blob(parts,{type:'application/pdf'})}
+
+return{streamMerge,NoStream}})();
 let combo=[];
 function cdraw(){$('clist').innerHTML=combo.length?combo.map((f,i)=>`<div class="card"><div style="flex:1;min-width:0;word-break:break-all"><b>${i+1}.</b> ${esc(f.name)}<br><small>${(f.size/1048576).toFixed(1)} MB</small></div><div><button class="g" data-c="u" data-i="${i}">▲</button><button class="g" data-c="d" data-i="${i}">▼</button><button class="g" data-c="x" data-i="${i}">✕</button></div></div>`).join(''):'<p class="s">No PDFs chosen yet.</p>'}
-$('pdfs').onchange=e=>{for(const f of e.target.files)combo.push(f);cdraw()};
+$('pdfs').onchange=async e=>{for(const f of[...e.target.files]){try{await f.slice(0,16).arrayBuffer();await f.slice(Math.max(0,f.size-16)).arrayBuffer();combo.push(f)}catch(er){$('cst').textContent='"'+f.name+'" cannot be read ('+er.message+'). Add it from the Files app.'}}cdraw()};
 $('pdfs').onclick=e=>{e.target.value=''};
 $('csort').onclick=()=>{combo.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));cdraw()};
 $('cclr').onclick=()=>{combo=[];cdraw();$('cst').textContent=''};
@@ -562,13 +644,17 @@ $('clist').onclick=e=>{const c=e.target.dataset.c,i=+e.target.dataset.i;if(!c)re
  cdraw()};
 $('cgo').onclick=async()=>{
  if(combo.length<2){$('cst').textContent='Add at least 2 PDFs.';return}
- $('cgo').disabled=true;
- try{const bufs=[];
-  for(let i=0;i<combo.length;i++){$('cst').textContent='Reading PDF '+(i+1)+' of '+combo.length+'…';bufs.push(await readFile(combo[i]))}
-  $('cst').textContent='Joining the PDFs…';
-  save(await merge(bufs),($('cname').value||'Combined')+'.pdf');
-  $('cst').textContent='Done! Saved in Downloads. Order: '+combo.map(f=>f.name).join(' → ')}
- catch(er){$('cst').textContent='Problem: '+er.message+' (the PDFs may be too big for the phone memory, try fewer at a time)'}
+ $('cgo').disabled=true;const name=($('cname').value||'Combined')+'.pdf',total=combo.reduce((a,f)=>a+f.size,0);
+ try{let blob=null;
+  try{blob=await streamMerge(combo,(k,n)=>{$('cst').textContent='Joining PDF '+(k+1)+' of '+n+'…'})}
+  catch(er){if(!(er instanceof NoStream))throw er}
+  if(!blob){
+   if(total>200e6)throw new Error('One of these PDFs is in a format that needs a lot of memory to join, and together they are '+Math.round(total/1e6)+' MB. Join fewer PDFs at a time.');
+   const bufs=[];for(let i=0;i<combo.length;i++){$('cst').textContent='Reading PDF '+(i+1)+' of '+combo.length+' (slow method)…';bufs.push(await readFile(combo[i]))}
+   $('cst').textContent='Joining the PDFs (slow method)…';blob=await merge(bufs)}
+  save(blob,name);
+  $('cst').textContent='Done! Saved in Downloads ('+(blob.size/1048576).toFixed(1)+' MB). Order: '+combo.map(f=>f.name).join(' → ')}
+ catch(er){$('cst').textContent='Problem: '+er.message}
  $('cgo').disabled=false};
 cdraw();
 /* ---- fonts for Sinhala / Tamil hidden text ---- */
@@ -624,7 +710,7 @@ function addOutline(doc,items){
   if(i>0)d.set(N('Prev'),refs[i-1]);if(i<items.length-1)d.set(N('Next'),refs[i+1]);ctx.assign(refs[i],d)});
  ctx.assign(root,ctx.obj({Type:'Outlines',First:refs[0],Last:refs[refs.length-1],Count:items.length}));
  doc.catalog.set(N('Outlines'),root);doc.catalog.set(N('PageMode'),N('UseOutlines'))}
-async function finish(ab,items,rots){const d=await PDFLib.PDFDocument.load(ab);(rots||[]).forEach((r,i)=>{if(r)d.getPage(i).setRotation(PDFLib.degrees(r))});addOutline(d,items);return await d.save()}
+async function finish(ab,items,rots){const d=await PDFLib.PDFDocument.load(ab);(rots||[]).forEach((r,i)=>{if(r)d.getPage(i).setRotation(PDFLib.degrees(r))});addOutline(d,items);return await d.save({useObjectStreams:false})}
 /* ---- save the book for the Reader ---- */
 function saveBook(b){return new Promise((ok,no)=>{const r=indexedDB.open('palimpsest',1);
  r.onupgradeneeded=()=>r.result.createObjectStore('books',{keyPath:'name'});
@@ -703,7 +789,7 @@ $('go').onclick=async()=>{
    if(wantGiant&&multi){const doc=await mergeDoc(parts.map(p=>p.ab));
     parts.flatMap(p=>p.rots||[]).forEach((r,i)=>{if(r)doc.getPage(i).setRotation(PDFLib.degrees(r))});
     addOutline(doc,ents.map(e=>({title:e.title,page:e.pos-1})));
-    save(new Blob([await doc.save()],{type:'application/pdf'}),base_+(wantParts?'_FULL':'')+'.pdf')}}
+    save(new Blob([await doc.save({useObjectStreams:false})],{type:'application/pdf'}),base_+(wantParts?'_FULL':'')+'.pdf')}}
   if(skipped.size)notes.push('SKIPPED PHOTOS (they could not be opened, so they are not in the PDF):\n'+[...skipped].join('\n'));
   let msg=(stop?'Stopped. ':'Done! ')+done+' page(s) saved. Check your Downloads folder.'+(skipped.size?' '+skipped.size+' photo(s) skipped, see below.':'');
   if(ocr&&texts.length){try{await saveBook({name:base_,date:Date.now(),pages:texts,chapters:ents.map(e=>({title:e.title,pos:e.pos}))});msg+=' The book is ready in the Reader.'}catch(e){}}

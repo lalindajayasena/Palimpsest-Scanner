@@ -234,7 +234,7 @@ $('ncc').onclick=e=>{const c=e.target.closest('[data-c]');if(c){nc.color=c.datas
 /* ---- saving ---- */
 function mapPt(R,u,v,b){let us,vs;if(R==0){us=u;vs=v}else if(R==90){us=v;vs=1-u}else if(R==180){us=1-u;vs=1-v}else{us=1-v;vs=u}
  return[b.x+us*b.width,b.y+(1-vs)*b.height]}
-function save(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000)}
+function save(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},180000)}
 $('sv2').onclick=async()=>{
  if(!pages.length){$('sst').textContent='Add a PDF first.';return}
  $('sv2').disabled=true;const out=await PDFLib.PDFDocument.create(),docs=new Map(),copied=new Map(),imgs=new Map();
@@ -257,7 +257,7 @@ $('sv2').onclick=async()=>{
     pg.drawImage(im,{x:o[0],y:o[1],width:w,height:h,rotate:PDFLib.degrees(R)})}
    await new Promise(r=>setTimeout(r,0))}
   $('sst').textContent='Writing the file…';
-  const bytes=await out.save();
+  const bytes=await out.save({useObjectStreams:false});
   save(new Blob([bytes],{type:'application/pdf'}),($('nm').value||'edited')+'.pdf');dirty=false;
   $('sst').textContent='Done! '+pages.length+' page(s) saved in Downloads ('+(bytes.length/1048576).toFixed(1)+' MB).'
  }catch(e){$('sst').textContent='Problem: '+e.message+' (a very big PDF may not fit in the phone memory)'}
