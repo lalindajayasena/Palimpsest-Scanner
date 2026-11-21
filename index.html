@@ -35,7 +35,7 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 .sp span{position:absolute;bottom:0;left:0;right:0;text-align:center;font-size:11px;background:#000b;color:#fff}
 </style></head><body>
 <h1>Palimpsest Scanner</h1>
-<div id="ver" style="font-size:12px;opacity:.6;margin:-2px 0 6px">Version 16 · 20 Nov 2026</div>
+<div id="ver" style="font-size:12px;opacity:.6;margin:-2px 0 6px">Version 17 · 21 Nov 2026</div>
 <p class="s">Photos in, natural searchable PDF out. Free. No limits.</p>
 <p style="margin:0 0 10px"><button class="g" id="hbtn">❓ Help</button><button class="g" id="upd">🔄 Update app</button><button class="g" id="inst" style="display:none">⬇ Install app</button><a href="reader.html" style="color:var(--ac);font-size:16px">📖 Open the Reader (read or listen to your books)</a> <a href="editor.html" style="color:var(--ac);font-size:16px;margin-left:10px">✏ PDF Editor</a></p>
 <div id="tabs"><button id="tb1">📷 Pages</button><button class="g" id="tb2">⚙ Make PDF</button></div>
@@ -81,7 +81,7 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 <option value="sin+tam+eng">Sinhala + Tamil + English</option>
 </select>
 <label class="ck"><input type="checkbox" id="bm" checked> Make chapter bookmarks (needs OCR)</label>
-<label class="ck"><input type="checkbox" id="txt" checked> Also save a plain text file</label>
+<label class="ck"><input type="checkbox" id="txt"> Also save the text as a separate .txt file (not needed for searching)</label>
 <label style="font-size:14px">Pages in each part (smaller = safer for your phone)</label>
 <input id="chunk" type="number" value="40" min="1">
 <label style="font-size:14px">What to save</label>
@@ -134,7 +134,7 @@ select,input[type=text],input[type=number]{font-size:16px;padding:10px;border-ra
 <li><b>Auto-crop (experimental)</b>: finds the page edges in the photo, cuts away the table, and straightens a tilted page. Tap <b>👁</b> to check the green outline. Tick <b>Skip auto-crop</b> on a photo where it goes wrong. It works best when the page is brighter than what is behind it. It does not flatten a curved page near the spine.</li>
 <li><b>Remove shadows</b>: evens out the light. Turn it off if the page has big pictures.</li>
 <li><b>Trim edges</b>: cuts a few percent from every side. Use 3 to remove fingers at the edge.</li>
-<li><b>Read the text (OCR)</b>: makes the PDF searchable and saves a .txt file. It is slow, about 15 to 40 seconds a page.</li>
+<li><b>Read the text (OCR)</b>: makes the PDF searchable. The text is hidden inside the PDF. No extra files are saved unless you tick the .txt box. It is slow, about 15 to 40 seconds a page.</li>
 <li><b>Language</b>: pick the language of the book. The first time, extra data downloads and needs internet.</li>
 <li><b>Chapter bookmarks</b>: makes a chapter list inside the PDF. Check the report below the button.</li>
 <li><b>Pages in each part</b>: smaller is safer for your phone. 40 is good.</li>
@@ -797,7 +797,7 @@ $('go').onclick=async()=>{
    let t='PAGE NUMBER CHECK\nRead a number on '+read+' of '+nums.length+' pages.\n\n'+(r.out.length?r.out.join('\n'):'No missing, repeated or out-of-order numbers found.');
    if(bmOn)t+='\n\nCHAPTER BOOKMARKS\n'+(ents.length?'Found '+ents.length+' from '+ents[0].src+':\n'+ents.slice(0,60).map(e=>'• '+e.title+'  → page '+e.pos).join('\n'):'No chapter titles found.');
    if(notes.length)t+='\n\nNOTES\n'+notes.join('\n');
-   $('rep').textContent=t;$('rep').style.display='block';save(new Blob([t],{type:'text/plain'}),base_+'_report.txt');
+   $('rep').textContent=t;$('rep').style.display='block';
    msg+=r.out.length?' Page check found '+r.out.length+' thing(s), see below.':' Page numbers look complete.'}
   if(!(ocr&&nums.length)&&notes.length){$('rep').textContent=notes.join('\n\n');$('rep').style.display='block'}
   $('st').textContent=msg;

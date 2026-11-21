@@ -7,6 +7,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Alex+Brush&family=Allura&family=Caveat:wght@600&family=Dancing+Script:wght@600&family=Great+Vibes&family=Homemade+Apple&family=Pacifico&family=Parisienne&family=Reenie+Beanie&family=Sacramento&family=Satisfy&family=Shadows+Into+Light&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 <style>
 :root{--bg:#f6f1e7;--fg:#2b2a26;--card:#fffdf8;--ac:#7a4b1e;--bd:#d9cfbb}
 @media(prefers-color-scheme:dark){:root{--bg:#1d1b17;--fg:#ece6d8;--card:#2a2721;--ac:#d9a066;--bd:#443e33}}
@@ -35,7 +37,7 @@ input[type=text],input[type=number],select{font-size:16px;padding:10px;border-ra
 details{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:8px 12px;margin:8px 0}summary{font-weight:700;padding:4px 0}
 </style></head><body>
 <h1>✏ PDF Editor</h1>
-<div style="font-size:12px;opacity:.6;margin-bottom:6px">PDF Editor · Version 1 · 19 Nov 2026</div>
+<div style="font-size:12px;opacity:.6;margin-bottom:6px">PDF Editor · Version 2 · 21 Nov 2026</div>
 <div class="row"><a href="index.html" style="color:var(--ac)">← Scanner</a> <a href="reader.html" style="color:var(--ac)">📖 Reader</a> <button class="g" id="hb">❓ Help</button></div>
 <div id="st"></div>
 <input id="pf" type="file" accept="application/pdf,.pdf" multiple hidden>
@@ -58,9 +60,16 @@ details{background:var(--card);border:1px solid var(--bd);border-radius:10px;pad
 <div class="row"><select id="nft"></select><select id="npos"><option value="bc">Bottom middle</option><option value="br">Bottom right</option><option value="bl">Bottom left</option><option value="tc">Top middle</option><option value="tr">Top right</option><option value="tl">Top left</option></select></div>
 <div id="ncc" class="chips"></div>
 </details>
+<details id="od"><summary>🔎 Make the PDF searchable (OCR)</summary>
+<label style="display:block;margin:6px 0"><input type="checkbox" id="ocr"> Read the text on every page, so the PDF can be searched</label>
+<select id="olang"><option value="eng">English</option><option value="sin+eng">Sinhala and English</option><option value="tam+eng">Tamil and English</option><option value="sin+tam+eng">Sinhala, Tamil and English</option></select>
+<label style="display:block;margin:6px 0"><input type="checkbox" id="oskip" checked> Skip pages that already have searchable text</label>
+<div style="font-size:13px;opacity:.7">Your pages are not changed. An invisible layer of text is added behind each page, so the picture keeps its original quality. It takes about 15 to 40 seconds a page. Keep the screen on and plug in the charger.</div>
+</details>
 <h3>Save</h3>
 <input id="nm" type="text" placeholder="Name of the new PDF" style="width:100%">
 <button id="sv2" style="width:100%;font-size:18px">💾 Save PDF</button>
+<button class="g" id="stp" style="width:100%;display:none">Stop reading text and finish the file</button>
 <div id="sst" style="margin:6px 0;font-weight:600"></div>
 <div id="strip"></div>
 <div id="hp"><button id="hx">✕ Close help</button>
@@ -82,6 +91,11 @@ details{background:var(--card);border:1px solid var(--bd);border-radius:10px;pad
 <li><b>⇉ Copy to all pages</b> puts the same text in the same place on every page.</li>
 <li><b>Number the pages</b> puts a page number on every page. The numbers follow the new order.</li>
 <li>Numbers look best in Dancing Script, Caveat, Satisfy, Pacifico and Homemade Apple.</li></ul></details>
+<details><summary>Make a PDF searchable (OCR)</summary><ul>
+<li>Add your PDF, open <b>🔎 Make the PDF searchable</b>, tick the box and choose the language. Then tap <b>💾 Save PDF</b>.</li>
+<li>The pages stay exactly as they are. The app adds an invisible layer of text behind each page, so you can search and copy words.</li>
+<li>Pages that already have text are skipped, if that box is ticked.</li>
+<li>It is slow (about 15 to 40 seconds a page). Keep the screen on. <b>Stop reading text</b> finishes the file with the pages done so far.</li></ul></details>
 <details><summary>Quality</summary><ul>
 <li>Pages are not turned into pictures. Their original content is kept exactly, so the resolution and quality stay the same.</li>
 <li>Text you add is drawn as a very sharp picture of the letters on top of the page. It prints sharp, but it is not searchable text.</li></ul></details>
@@ -231,6 +245,26 @@ $('pc').onpointerup=$('pc').onpointercancel=()=>{drag=null};
 const nUp=()=>{nc.on=$('non').checked;nc.start=+$('nst').value||1;nc.size=Math.max(8,Math.min(60,+$('nsz').value||16));nc.font=$('nft').value;nc.pos=$('npos').value;dirty=true;paint()};
 for(const id of['non','nst','nsz','nft','npos'])$(id).onchange=nUp;
 $('ncc').onclick=e=>{const c=e.target.closest('[data-c]');if(c){nc.color=c.dataset.c;[...$('ncc').children].forEach(x=>x.classList.toggle('on',x===c));nUp()}};
+/* ---- OCR: an invisible text layer behind the original page ---- */
+const CP='https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@f1c541f68eb1de8f3c14fb8eefc8adf2c2a7a1fd/unhinted/';
+const HF={sin:{re:/[\u0D80-\u0DFF]/,rng:'\\u0D80-\\u0DFF\\u200C\\u200D',urls:[CP+'NotoSansSinhala-Regular.ttf','https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@main/hinted/ttf/NotoSansSinhala/NotoSansSinhala-Regular.ttf']},
+ tam:{re:/[\u0B80-\u0BFF]/,rng:'\\u0B80-\\u0BFF\\u200C\\u200D',urls:[CP+'NotoSansTamil-Regular.ttf','https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@main/hinted/ttf/NotoSansTamil/NotoSansTamil-Regular.ttf']}};
+async function fetchFont(urls){for(const u of urls){try{const r=await fetch(u);if(r.ok)return new Uint8Array(await r.arrayBuffer())}catch(e){}}return null}
+let stopF=false;$('stp').onclick=()=>{stopF=true;$('sst').textContent='Stopping… finishing the file.'};
+async function addOcr(pg,p,R,box,Wd,Hd,worker,F,skipEx){
+ if(skipEx){const page=await srcs[p.s].doc.getPage(p.i+1),tc=await page.getTextContent();
+  const n=tc.items.reduce((a,i)=>a+(i.str||'').replace(/\s/g,'').length,0);page.cleanup();if(n>=30)return-1}
+ const r=await renderBase(p,2200),ow=r.cv.width,oh=r.cv.height,{data}=await worker.recognize(r.cv);r.cv.width=0;
+ const sc=Wd/ow,inv=!!(PDFLib.setTextRenderingMode&&PDFLib.TextRenderingMode);let n=0;
+ if(inv)pg.pushOperators(PDFLib.pushGraphicsState(),PDFLib.setTextRenderingMode(PDFLib.TextRenderingMode.Invisible));
+ for(const wd of(data.words||[])){
+  let t=wd.text,font=F.lat,keep='\\x20-\\x7E\\u00A0-\\u00FF';
+  for(const k of['sin','tam'])if(F[k]&&HF[k].re.test(t)){font=F[k];keep+=HF[k].rng;break}
+  t=t.replace(new RegExp('[^'+keep+']','g'),'');if(!t.trim())continue;
+  const h0=wd.bbox.y1-wd.bbox.y0,o=mapPt(R,wd.bbox.x0/ow,(wd.bbox.y1-h0*.2)/oh,box);
+  try{const opt={x:o[0],y:o[1],size:Math.max(4,h0*sc*.8),font,rotate:PDFLib.degrees(R)};if(!inv)opt.opacity=0;pg.drawText(t,opt);n++}catch(er){}}
+ if(inv)pg.pushOperators(PDFLib.popGraphicsState());
+ return n}
 /* ---- saving ---- */
 function mapPt(R,u,v,b){let us,vs;if(R==0){us=u;vs=v}else if(R==90){us=v;vs=1-u}else if(R==180){us=1-u;vs=1-v}else{us=1-v;vs=u}
  return[b.x+us*b.width,b.y+(1-vs)*b.height]}
@@ -238,7 +272,17 @@ function save(blob,name){const a=document.createElement('a');a.href=URL.createOb
 $('sv2').onclick=async()=>{
  if(!pages.length){$('sst').textContent='Add a PDF first.';return}
  $('sv2').disabled=true;const out=await PDFLib.PDFDocument.create(),docs=new Map(),copied=new Map(),imgs=new Map();
+ let worker=null,wl=null,F=null,ocrOn=$('ocr').checked,stats={done:0,had:0,none:0},t0=Date.now();stopF=false;
+ if(ocrOn)$('stp').style.display='block';
  try{
+  try{wl=await navigator.wakeLock.request('screen')}catch(e){}
+  if(ocrOn){$('sst').textContent='Loading the text reader and language (first time needs internet)…';
+   const lang=$('olang').value,notes=[];
+   if(/sin|tam/.test(lang))out.registerFontkit(fontkit);
+   F={lat:await out.embedFont(PDFLib.StandardFonts.Helvetica)};
+   for(const k of['sin','tam'])if(lang.includes(k)){const b=await fetchFont(HF[k].urls);if(b){try{F[k]=await out.embedFont(b,{subset:true})}catch(er){notes.push(k)}}else notes.push(k)}
+   if(notes.length)st('The '+notes.map(k=>k=='sin'?'Sinhala':'Tamil').join(' and ')+' font could not be loaded, so that writing is not searchable.');
+   worker=await Tesseract.createWorker(lang)}
   for(let n=0;n<srcs.length;n++){const idx=[...new Set(pages.filter(p=>p.s==n).map(p=>p.i))].sort((a,b)=>a-b);if(!idx.length)continue;
    $('sst').textContent='Reading '+srcs[n].name+'…';
    const sd=await PDFLib.PDFDocument.load(await readFile(srcs[n].file),{ignoreEncryption:true}),cp=await out.copyPages(sd,idx);
@@ -255,13 +299,19 @@ $('sv2').onclick=async()=>{
     if(!im){const blob=await new Promise(r=>t.cv.toBlob(r,'image/png'));im=await out.embedPng(await blob.arrayBuffer());imgs.set(key,im)}
     const w=t.cv.width/t.ppt,h=t.cv.height/t.ppt,o=mapPt(R,t.x/Wd,(t.y+h)/Hd,box);
     pg.drawImage(im,{x:o[0],y:o[1],width:w,height:h,rotate:PDFLib.degrees(R)})}
+   if(ocrOn&&stopF)ocrOn=false;
+   if(ocrOn){const sk=$('oskip').checked,per=stats.done?(Date.now()-t0)/stats.done/1000:30,left=Math.max(0,Math.round(per*(pages.length-i)/60));
+    $('sst').textContent='Reading the text on page '+(i+1)+' of '+pages.length+(stats.done?' (about '+left+' min left)':'')+'. Keep the screen on.';
+    const n=await addOcr(pg,p,R,box,Wd,Hd,worker,F,sk);if(n<0)stats.had++;else{stats.done++;if(!n)stats.none++}}
    await new Promise(r=>setTimeout(r,0))}
   $('sst').textContent='Writing the file…';
   const bytes=await out.save({useObjectStreams:false});
   save(new Blob([bytes],{type:'application/pdf'}),($('nm').value||'edited')+'.pdf');dirty=false;
-  $('sst').textContent='Done! '+pages.length+' page(s) saved in Downloads ('+(bytes.length/1048576).toFixed(1)+' MB).'
+  $('sst').textContent='Done! '+pages.length+' page(s) saved in Downloads ('+(bytes.length/1048576).toFixed(1)+' MB).'+($('ocr').checked?' Text was read on '+stats.done+' page(s)'+(stats.had?', '+stats.had+' already had text':'')+(stats.none?', '+stats.none+' had no readable text':'')+(stopF?' (stopped early)':'')+'.':'')
  }catch(e){$('sst').textContent='Problem: '+e.message+' (a very big PDF may not fit in the phone memory)'}
- $('sv2').disabled=false};
+ try{if(worker)await worker.terminate()}catch(e){}
+ try{if(wl)wl.release()}catch(e){}
+ $('stp').style.display='none';$('sv2').disabled=false};
 $('hb').onclick=()=>$('hp').style.display='block';$('hx').onclick=()=>$('hp').style.display='none';
 addEventListener('beforeunload',e=>{if(dirty&&pages.length){e.preventDefault();e.returnValue=''}});
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
